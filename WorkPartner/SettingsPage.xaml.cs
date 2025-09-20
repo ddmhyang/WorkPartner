@@ -1,5 +1,5 @@
-﻿// 파일: SettingsPage.xaml.cs (수정)
-// [수정] DataManager 사용, 예외 처리 강화, UI 업데이트 로직 개선
+﻿// 파일: SettingsPage.xaml.cs
+
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -35,45 +35,23 @@ namespace WorkPartner
         public AppSettings Settings { get; set; }
         private List<InstalledProgram> _allPrograms;
         private string _targetProcessList;
-        private bool _isDataLoaded = false;
 
         public SettingsPage()
         {
             InitializeComponent();
             this.Loaded += SettingsPage_Loaded;
 
-            // Load programs in the background to avoid UI freezing
-            LoadProgramsInBackground();
+            BackgroundWorker worker = new BackgroundWorker();
+            worker.DoWork += (s, e) => { _allPrograms = GetAllPrograms(); };
+            worker.RunWorkerCompleted += (s, e) => { };
+            worker.RunWorkerAsync();
         }
 
         private void SettingsPage_Loaded(object sender, RoutedEventArgs e)
         {
-            // Load settings only once when the page is loaded
-            if (!_isDataLoaded)
-            {
-                LoadSettings();
-                UpdateUIFromSettings();
-                _isDataLoaded = true;
-            }
+            LoadSettings();
+            UpdateUIFromSettings();
         }
-
-        private void LoadProgramsInBackground()
-        {
-            LoadingProgressBar.Visibility = Visibility.Visible;
-            BackgroundWorker worker = new BackgroundWorker();
-            worker.DoWork += (s, e) => {
-                _allPrograms = GetAllPrograms();
-            };
-            worker.RunWorkerCompleted += (s, e) => {
-                LoadingProgressBar.Visibility = Visibility.Collapsed;
-                if (e.Error != null)
-                {
-                    MessageBox.Show($"프로그램 목록을 불러오는 중 오류가 발생했습니다: {e.Error.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
-                }
-            };
-            worker.RunWorkerAsync();
-        }
-
 
         #region 과목별 색상 설정
 
@@ -81,20 +59,26 @@ namespace WorkPartner
         {
             if (Settings == null) LoadSettings();
 
-            var tasks = DataManager.LoadData<List<TaskItem>>(DataManager.TasksFilePath);
+            List<TaskItem> tasks = new List<TaskItem>();
+            if (File.Exists(DataManager.TasksFilePath))
+            {
+                try
+                {
+                    var json = File.ReadAllText(DataManager.TasksFilePath);
+                    tasks = JsonSerializer.Deserialize<List<TaskItem>>(json) ?? new List<TaskItem>();
+                }
+                catch { /* 파일이 비어있거나 손상된 경우 무시 */ }
+            }
 
             var taskColorVMs = new List<TaskColorViewModel>();
-            if (tasks != null)
+            foreach (var task in tasks)
             {
-                foreach (var task in tasks)
+                string colorHex = "#FFFFFFFF"; // Default to white
+                if (Settings.TaskColors.ContainsKey(task.Text))
                 {
-                    string colorHex = "#FFFFFFFF"; // Default to white
-                    if (Settings.TaskColors.ContainsKey(task.Text))
-                    {
-                        colorHex = Settings.TaskColors[task.Text];
-                    }
-                    taskColorVMs.Add(new TaskColorViewModel { Name = task.Text, ColorHex = colorHex });
+                    colorHex = Settings.TaskColors[task.Text];
                 }
+                taskColorVMs.Add(new TaskColorViewModel { Name = task.Text, ColorHex = colorHex });
             }
 
             TaskColorsListBox.ItemsSource = taskColorVMs.OrderBy(t => t.Name).ToList();
@@ -104,15 +88,7 @@ namespace WorkPartner
         {
             if (TaskColorsListBox.SelectedItem is TaskColorViewModel selectedTask)
             {
-                Color initialColor;
-                try
-                {
-                    initialColor = (Color)ColorConverter.ConvertFromString(selectedTask.ColorHex);
-                }
-                catch
-                {
-                    initialColor = Colors.White; // Fallback color
-                }
+                Color initialColor = (Color)ColorConverter.ConvertFromString(selectedTask.ColorHex);
                 var colorPickerWindow = new ColorPickerWindow(initialColor) { Owner = Window.GetWindow(this) };
 
                 if (colorPickerWindow.ShowDialog() == true)
@@ -140,8 +116,6 @@ namespace WorkPartner
 
         private void UpdateUIFromSettings()
         {
-            if (Settings == null) LoadSettings();
-
             IdleDetectionCheckBox.IsChecked = Settings.IsIdleDetectionEnabled;
             IdleTimeoutTextBox.Text = Settings.IdleTimeoutSeconds.ToString();
             MiniTimerCheckBox.IsChecked = Settings.IsMiniTimerEnabled;
@@ -150,7 +124,7 @@ namespace WorkPartner
             DistractionProcessListBox.ItemsSource = Settings.DistractionProcesses;
             NagMessageTextBox.Text = Settings.FocusModeNagMessage;
             NagIntervalTextBox.Text = Settings.FocusModeNagIntervalSeconds.ToString();
-            TagRulesListView.ItemsSource = new ObservableCollection<KeyValuePair<string, string>>(Settings.TagRules); // Use ObservableCollection for dynamic updates
+            TagRulesListView.ItemsSource = Settings.TagRules.ToList(); // ToList()로 복사본을 바인딩
             LoadTaskColors();
         }
         #endregion
@@ -172,40 +146,28 @@ namespace WorkPartner
                         if (key == null) continue;
                         foreach (string subkeyName in key.GetSubKeyNames())
                         {
-                            try
+                            using (RegistryKey subkey = key.OpenSubKey(subkeyName))
                             {
-                                using (RegistryKey subkey = key.OpenSubKey(subkeyName))
-                                {
-                                    if (subkey == null) continue;
-                                    var displayName = subkey.GetValue("DisplayName") as string;
-                                    var iconPath = subkey.GetValue("DisplayIcon") as string;
-                                    var systemComponent = subkey.GetValue("SystemComponent") as int?;
+                                if (subkey == null) continue;
+                                var displayName = subkey.GetValue("DisplayName") as string;
+                                var iconPath = subkey.GetValue("DisplayIcon") as string;
+                                var systemComponent = subkey.GetValue("SystemComponent") as int?;
 
-                                    if (!string.IsNullOrWhiteSpace(displayName) && systemComponent != 1)
+                                if (!string.IsNullOrWhiteSpace(displayName) && systemComponent != 1)
+                                {
+                                    string executablePath = GetExecutablePathFromIconPath(iconPath);
+                                    if (string.IsNullOrEmpty(executablePath)) continue;
+                                    string processName = System.IO.Path.GetFileNameWithoutExtension(executablePath).ToLower();
+                                    if (!programs.ContainsKey(processName))
                                     {
-                                        string executablePath = GetExecutablePathFromIconPath(iconPath);
-                                        if (string.IsNullOrEmpty(executablePath)) continue;
-                                        string processName = System.IO.Path.GetFileNameWithoutExtension(executablePath).ToLower();
-                                        if (!programs.ContainsKey(processName))
-                                        {
-                                            programs[processName] = new InstalledProgram { DisplayName = displayName, ProcessName = processName, IconPath = executablePath };
-                                        }
+                                        programs[processName] = new InstalledProgram { DisplayName = displayName, ProcessName = processName, IconPath = executablePath };
                                     }
                                 }
-                            }
-                            catch (Exception ex)
-                            {
-                                // 개별 레지스트리 키 접근 오류는 무시하고 계속 진행
-                                System.Diagnostics.Debug.WriteLine($"Error reading registry key {subkeyName}: {ex.Message}");
                             }
                         }
                     }
                 }
-                catch (Exception ex)
-                {
-                    // 최상위 레지스트리 키 접근 오류
-                    System.Diagnostics.Debug.WriteLine($"Error accessing registry view {view}: {ex.Message}");
-                }
+                catch { }
             }
 
             // Add major browsers manually
@@ -224,16 +186,7 @@ namespace WorkPartner
                 foreach (var program in programs.Values)
                 {
                     if (!string.IsNullOrEmpty(program.IconPath))
-                    {
-                        try
-                        {
-                            program.Icon = GetIcon(program.IconPath);
-                        }
-                        catch
-                        {
-                            // 아이콘 로드 실패 시 무시
-                        }
-                    }
+                        program.Icon = GetIcon(program.IconPath);
                 }
             });
 
@@ -243,12 +196,8 @@ namespace WorkPartner
         private string GetExecutablePathFromIconPath(string iconPath)
         {
             if (string.IsNullOrWhiteSpace(iconPath)) return null;
-            try
-            {
-                string executablePath = iconPath.Split(',')[0].Replace("\"", "");
-                if (File.Exists(executablePath)) return executablePath;
-            }
-            catch { /* 파싱 오류 무시 */ }
+            string executablePath = iconPath.Split(',')[0].Replace("\"", "");
+            if (File.Exists(executablePath)) return executablePath;
             return null;
         }
 
@@ -278,7 +227,7 @@ namespace WorkPartner
                 try
                 {
                     string processName = process.ProcessName.ToLower();
-                    if (addedProcesses.Contains(processName) || string.IsNullOrEmpty(process.MainModule?.FileName)) continue;
+                    if (addedProcesses.Contains(processName)) continue;
 
                     allRunningApps.Add(new InstalledProgram
                     {
@@ -288,11 +237,7 @@ namespace WorkPartner
                     });
                     addedProcesses.Add(processName);
                 }
-                catch (Exception ex)
-                {
-                    // 일부 프로세스(예: 시스템 프로세스)는 접근이 거부될 수 있습니다.
-                    System.Diagnostics.Debug.WriteLine($"Could not access process {process.ProcessName}: {ex.Message}");
-                }
+                catch { }
             }
 
             var sortedApps = allRunningApps.OrderBy(p => p.DisplayName).ToList();
@@ -325,17 +270,7 @@ namespace WorkPartner
             timer.Tick += (s, args) =>
             {
                 timer.Stop();
-                string activeUrl = null;
-                try
-                {
-                    activeUrl = ActiveWindowHelper.GetActiveBrowserTabUrl();
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show($"브라우저 탭 정보 조회 중 오류가 발생했습니다: {ex.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
-
+                string activeUrl = ActiveWindowHelper.GetActiveBrowserTabUrl();
 
                 if (string.IsNullOrEmpty(activeUrl))
                 {
@@ -346,15 +281,7 @@ namespace WorkPartner
                 string urlKeyword;
                 try
                 {
-                    // 'about:blank'와 같은 내부 페이지는 호스트가 없으므로 예외 처리
-                    if (Uri.IsWellFormedUriString(activeUrl, UriKind.Absolute))
-                    {
-                        urlKeyword = new Uri(activeUrl).Host.ToLower();
-                    }
-                    else
-                    {
-                        urlKeyword = activeUrl;
-                    }
+                    urlKeyword = new Uri(activeUrl).Host.ToLower();
                 }
                 catch
                 {
@@ -377,7 +304,7 @@ namespace WorkPartner
             {
                 list.Add(process);
                 DataManager.SaveSettingsAndNotify(Settings);
-                listBox.ItemsSource = null; // 강제 새로고침
+                listBox.ItemsSource = null;
                 listBox.ItemsSource = list;
             }
         }
@@ -388,7 +315,7 @@ namespace WorkPartner
             {
                 list.Remove(selected);
                 DataManager.SaveSettingsAndNotify(Settings);
-                listBox.ItemsSource = null; // 강제 새로고침
+                listBox.ItemsSource = null;
                 listBox.ItemsSource = list;
             }
         }
@@ -415,7 +342,7 @@ namespace WorkPartner
 
         private void Setting_Changed(object sender, RoutedEventArgs e)
         {
-            if (Settings == null || !_isDataLoaded) return;
+            if (Settings == null) return;
             if (sender == IdleDetectionCheckBox)
             {
                 Settings.IsIdleDetectionEnabled = IdleDetectionCheckBox.IsChecked ?? true;
@@ -430,7 +357,7 @@ namespace WorkPartner
 
         private void Setting_Changed_IdleTimeout(object sender, TextChangedEventArgs e)
         {
-            if (Settings != null && _isDataLoaded && int.TryParse(IdleTimeoutTextBox.Text, out int timeout))
+            if (Settings != null && int.TryParse(IdleTimeoutTextBox.Text, out int timeout))
             {
                 Settings.IdleTimeoutSeconds = timeout;
                 SaveSettings();
@@ -439,7 +366,7 @@ namespace WorkPartner
 
         private void NagMessageTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
-            if (Settings != null && _isDataLoaded)
+            if (Settings != null)
             {
                 Settings.FocusModeNagMessage = NagMessageTextBox.Text;
                 SaveSettings();
@@ -448,7 +375,7 @@ namespace WorkPartner
 
         private void NagIntervalTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
-            if (Settings != null && _isDataLoaded && int.TryParse(NagIntervalTextBox.Text, out int interval) && interval > 0)
+            if (Settings != null && int.TryParse(NagIntervalTextBox.Text, out int interval) && interval > 0)
             {
                 Settings.FocusModeNagIntervalSeconds = interval;
                 SaveSettings();
@@ -470,7 +397,7 @@ namespace WorkPartner
             {
                 Settings.TagRules[keyword] = tag;
                 TagRulesListView.ItemsSource = null;
-                TagRulesListView.ItemsSource = new ObservableCollection<KeyValuePair<string, string>>(Settings.TagRules.ToList()); // [수정] ObservableCollection으로 갱신
+                TagRulesListView.ItemsSource = Settings.TagRules.ToList();
                 SaveSettings();
                 KeywordInput.Clear();
                 TagInput.Clear();
@@ -489,7 +416,7 @@ namespace WorkPartner
                 {
                     Settings.TagRules.Remove(selectedRule.Key);
                     TagRulesListView.ItemsSource = null;
-                    TagRulesListView.ItemsSource = new ObservableCollection<KeyValuePair<string, string>>(Settings.TagRules.ToList()); // [수정] ObservableCollection으로 갱신
+                    TagRulesListView.ItemsSource = Settings.TagRules.ToList();
                     SaveSettings();
                 }
             }
@@ -505,10 +432,6 @@ namespace WorkPartner
             {
                 try
                 {
-                    // AppData 폴더 경로 가져오기
-                    string appDataFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "WorkPartner");
-
-                    // 삭제할 파일 목록
                     var filesToDelete = new string[]
                     {
                         DataManager.SettingsFilePath,
@@ -526,15 +449,6 @@ namespace WorkPartner
                             File.Delete(filePath);
                         }
                     }
-
-                    // 로그 폴더도 삭제 (선택적)
-                    string logDirectory = Path.Combine(appDataFolder, "Logs");
-                    if (Directory.Exists(logDirectory))
-                    {
-                        Directory.Delete(logDirectory, true);
-                    }
-
-
                     MessageBox.Show("모든 데이터가 성공적으로 초기화되었습니다.\n프로그램을 다시 시작해주세요.", "초기화 완료");
                     Application.Current.Shutdown();
                 }
@@ -567,8 +481,7 @@ namespace WorkPartner
             }
 
             var suggestions = _allPrograms
-                .Where(p => (p.DisplayName != null && p.DisplayName.ToLower().Contains(searchText)) ||
-                            (p.ProcessName != null && p.ProcessName.ToLower().Contains(searchText)))
+                .Where(p => p.DisplayName.ToLower().Contains(searchText) || p.ProcessName.ToLower().Contains(searchText))
                 .OrderBy(p => p.DisplayName)
                 .ToList();
 
@@ -609,35 +522,30 @@ namespace WorkPartner
             var popup = FindAssociatedPopup(tag);
             var suggestionBox = FindAssociatedSuggestionBox(tag);
 
-            if (popup == null || suggestionBox == null) return;
-
             if (popup.IsOpen)
             {
                 if (e.Key == Key.Down)
                 {
-                    e.Handled = true;
-                    if (suggestionBox.Items.Count > 0)
+                    suggestionBox.Focus();
+                    if (suggestionBox.Items.Count > 0 && suggestionBox.SelectedIndex < suggestionBox.Items.Count - 1)
                     {
-                        suggestionBox.SelectedIndex = (suggestionBox.SelectedIndex + 1) % suggestionBox.Items.Count;
-                        suggestionBox.ScrollIntoView(suggestionBox.SelectedItem);
+                        suggestionBox.SelectedIndex++;
                     }
                 }
                 else if (e.Key == Key.Up)
                 {
-                    e.Handled = true;
-                    if (suggestionBox.Items.Count > 0)
+                    suggestionBox.Focus();
+                    if (suggestionBox.SelectedIndex > 0)
                     {
-                        suggestionBox.SelectedIndex = (suggestionBox.SelectedIndex - 1 + suggestionBox.Items.Count) % suggestionBox.Items.Count;
-                        suggestionBox.ScrollIntoView(suggestionBox.SelectedItem);
+                        suggestionBox.SelectedIndex--;
                     }
                 }
                 else if (e.Key == Key.Escape)
                 {
                     popup.IsOpen = false;
                 }
-                else if (e.Key == Key.Enter && suggestionBox.SelectedItem != null) // selectedItem 확인 추가
+                else if (e.Key == Key.Enter && suggestionBox.IsFocused && suggestionBox.SelectedItem != null)
                 {
-                    e.Handled = true;
                     SuggestionListBox_SelectionChanged(suggestionBox, null);
                 }
             }
@@ -671,17 +579,42 @@ namespace WorkPartner
         #region 스크롤 개선 로직
         private void HandlePreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
-            if (!e.Handled)
+            if (e.Handled) return;
+
+            var element = sender as UIElement;
+            var scrollViewer = FindVisualParent<ScrollViewer>(element);
+
+            if (scrollViewer == null) return;
+
+            var parentScrollViewer = FindVisualParent<ScrollViewer>(scrollViewer);
+            if (parentScrollViewer == null) return;
+
+            if (e.Delta < 0) // Scrolling Down
             {
-                e.Handled = true;
-                var eventArg = new MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta)
+                // If the inner ScrollViewer is at the bottom, scroll the parent
+                if (scrollViewer.VerticalOffset >= scrollViewer.ScrollableHeight)
                 {
-                    RoutedEvent = UIElement.MouseWheelEvent,
-                    Source = sender
-                };
-                var parent = ((Control)sender).Parent as UIElement;
-                parent?.RaiseEvent(eventArg);
+                    parentScrollViewer.ScrollToVerticalOffset(parentScrollViewer.VerticalOffset - e.Delta);
+                    e.Handled = true;
+                }
             }
+            else // Scrolling Up
+            {
+                // If the inner ScrollViewer is at the top, scroll the parent
+                if (scrollViewer.VerticalOffset <= 0)
+                {
+                    parentScrollViewer.ScrollToVerticalOffset(parentScrollViewer.VerticalOffset - e.Delta);
+                    e.Handled = true;
+                }
+            }
+        }
+
+        private static T FindVisualParent<T>(DependencyObject child) where T : DependencyObject
+        {
+            DependencyObject parentObject = VisualTreeHelper.GetParent(child);
+            if (parentObject == null) return null;
+            T parent = parentObject as T;
+            return parent ?? FindVisualParent<T>(parentObject);
         }
         #endregion
     }

@@ -17,7 +17,6 @@ namespace WorkPartner
         public int Coins { get; set; }
         public List<Guid> OwnedItemIds { get; set; }
         public Dictionary<ItemType, Guid> EquippedItems { get; set; }
-        // [수정] Dictionary의 Key 타입을 string에서 ItemType으로 변경
         public Dictionary<ItemType, string> CustomColors { get; set; }
         public Dictionary<string, string> TaskColors { get; set; } = new Dictionary<string, string>();
 
@@ -40,7 +39,6 @@ namespace WorkPartner
             Coins = 0;
             OwnedItemIds = new List<Guid>();
             EquippedItems = new Dictionary<ItemType, Guid>();
-            // [수정] Dictionary의 Key 타입을 string에서 ItemType으로 변경
             CustomColors = new Dictionary<ItemType, string>();
             IsMiniTimerEnabled = false; // 기본값은 비활성화
         }

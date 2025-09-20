@@ -7,7 +7,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.ComponentModel;
-using System.Collections.ObjectModel; // 추가
 
 namespace WorkPartner
 {
@@ -24,9 +23,7 @@ namespace WorkPartner
         {
             InitializeComponent();
 
-            // [수정] 필수 파일들을 AppData 폴더로 복사합니다.
             DataManager.PrepareFileForEditing("FocusPredictionModel.zip");
-            DataManager.PrepareFileForEditing("items_db.json");
 
             _dashboardPage = new DashboardPage();
             _settingsPage = new SettingsPage();
@@ -47,12 +44,6 @@ namespace WorkPartner
         {
             // 메인 창이 닫힐 때 미니 타이머 창도 함께 닫습니다.
             _miniTimerWindow?.Close();
-        }
-
-        // [추가] Dashboard의 코인 디스플레이를 업데이트하는 메서드
-        public void UpdateCoinDisplay()
-        {
-            _dashboardPage?.UpdateCoinDisplay();
         }
 
         private void UpdateNavButtonSelection(Button selectedButton)
@@ -86,14 +77,14 @@ namespace WorkPartner
 
         private void AnalysisButton_Click(object sender, RoutedEventArgs e)
         {
-            // _analysisPage.LoadAndAnalyzeData(); // [수정] IsVisibleChanged에서 로드하도록 변경
+            _analysisPage.LoadAndAnalyzeData();
             PageContent.Content = _analysisPage;
             UpdateNavButtonSelection(sender as Button);
         }
 
         private void ShopButton_Click(object sender, RoutedEventArgs e)
         {
-            _shopPage.LoadData(); // LoadData로 변경
+            _shopPage.LoadSettings();
             PageContent.Content = _shopPage;
             UpdateNavButtonSelection(sender as Button);
         }
@@ -107,8 +98,7 @@ namespace WorkPartner
 
         public void ToggleMiniTimer()
         {
-            // [수정] DataManager를 통해 설정 로드
-            var settings = DataManager.LoadSettings();
+            var settings = LoadSettings();
             if (settings.IsMiniTimerEnabled)
             {
                 if (_miniTimerWindow == null || !_miniTimerWindow.IsVisible)
@@ -127,6 +117,15 @@ namespace WorkPartner
             }
         }
 
-        // [삭제] 불필요한 LoadSettings 메서드 제거
+        private AppSettings LoadSettings()
+        {
+            string settingsFilePath = "app_settings.json";
+            if (File.Exists(settingsFilePath))
+            {
+                var json = File.ReadAllText(settingsFilePath);
+                return JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
+            }
+            return new AppSettings();
+        }
     }
 }

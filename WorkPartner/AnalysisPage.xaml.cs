@@ -1,5 +1,5 @@
 ﻿// 파일: AnalysisPage.xaml.cs (수정)
-// [수정] DataManager 사용 및 비동기 로딩, 예외 처리 추가
+// [수정] async 한정자를 추가하여 await 연산자 오류를 해결했습니다.
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -16,6 +16,8 @@ namespace WorkPartner
 {
     public partial class AnalysisPage : UserControl
     {
+        private readonly string _timeLogFilePath = DataManager.TimeLogFilePath;
+        private readonly string _tasksFilePath = DataManager.TasksFilePath;
         private List<TimeLogEntry> _allTimeLogs;
         private PredictionService _predictionService;
 
@@ -30,78 +32,40 @@ namespace WorkPartner
             HourAnalysisSeries = new SeriesCollection();
             _predictionService = new PredictionService();
             DataContext = this;
+
+            InitializePredictionUI();
         }
 
-        // [추가] 페이지가 보일 때마다 데이터를 다시 로드하고 분석하도록 이벤트 핸들러 추가
-        private async void UserControl_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+        private void InitializePredictionUI()
         {
-            if ((bool)e.NewValue)
-            {
-                await LoadAndAnalyzeDataAsync();
-            }
-        }
-
-        public async Task LoadAndAnalyzeDataAsync()
-        {
-            LoadingOverlay.Visibility = Visibility.Visible;
-            try
-            {
-                await Task.Run(() =>
-                {
-                    _allTimeLogs = DataManager.LoadData<List<TimeLogEntry>>(DataManager.TimeLogFilePath) ?? new List<TimeLogEntry>();
-                    Dispatcher.Invoke(() => LoadTasksForPrediction());
-                    if (_allTimeLogs.Any())
-                    {
-                        _predictionService.TrainModel();
-                    }
-                });
-
-                if (!_allTimeLogs.Any())
-                {
-                    // 데이터가 없을 경우 UI 초기화
-                    TotalWorkTimeTextBlock.Text = "0 시간 0 분";
-                    TotalDaysTextBlock.Text = "0 일";
-                    MaxConcentrationTimeTextBlock.Text = "0 분";
-                    PeakConcentrationHourTextBlock.Text = "-";
-                    OverallAverageFocusScoreTextBlock.Text = "평가 데이터 없음";
-                    TaskFocusListView.ItemsSource = null;
-                    TaskAnalysisListView.ItemsSource = null;
-                    HourAnalysisSeries.Clear();
-                    HourLabels = new string[24];
-                    GoldenTimeSuggestionTextBlock.Text = "아직 기록된 학습 데이터가 없습니다.";
-                    WorkRestPatternSuggestionTextBlock.Text = "데이터를 쌓아 당신의 패턴을 분석해보세요!";
-                    PredictionResultTextBlock.Text = "데이터가 부족하여 예측할 수 없습니다.";
-                    return;
-                }
-
-                // UI 업데이트는 UI 스레드에서 수행
-                AnalyzeOverallStats();
-                AnalyzeFocusScores();
-                UpdateTaskAnalysis(DateTime.MinValue, DateTime.MaxValue);
-                GenerateFocusBasedAiSuggestion();
-                GenerateWorkRestPatternSuggestion();
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"데이터 분석 중 오류가 발생했습니다: {ex.Message}", "분석 오류", MessageBoxButton.OK, MessageBoxImage.Error);
-                // 여기에 로그를 남기는 코드를 추가할 수도 있습니다.
-            }
-            finally
-            {
-                LoadingOverlay.Visibility = Visibility.Collapsed;
-            }
-        }
-
-        private void LoadTasksForPrediction()
-        {
-            var tasks = DataManager.LoadData<List<TaskItem>>(DataManager.TasksFilePath);
-            TaskPredictionComboBox.ItemsSource = tasks;
-            if (tasks != null && tasks.Any()) TaskPredictionComboBox.SelectedIndex = 0;
-
             DayOfWeekPredictionComboBox.ItemsSource = Enum.GetValues(typeof(DayOfWeek)).Cast<DayOfWeek>().Select(d => ToKoreanDayOfWeek(d));
             DayOfWeekPredictionComboBox.SelectedIndex = (int)DateTime.Today.DayOfWeek;
             HourPredictionComboBox.ItemsSource = Enumerable.Range(0, 24).Select(h => $"{h} 시");
             HourPredictionComboBox.SelectedIndex = DateTime.Now.Hour;
+        }
+
+        public async void LoadAndAnalyzeData()
+        {
+            LoadTimeLogs();
+            LoadTasksForPrediction();
+            if (!_allTimeLogs.Any()) return;
+
+            await Task.Run(() => _predictionService.TrainModel());
+
+            AnalyzeOverallStats();
+            AnalyzeFocusScores();
+            UpdateTaskAnalysis(DateTime.MinValue, DateTime.MaxValue);
+            GenerateFocusBasedAiSuggestion();
+            GenerateWorkRestPatternSuggestion();
+        }
+
+        private void LoadTasksForPrediction()
+        {
+            if (!File.Exists(_tasksFilePath)) return;
+            var json = File.ReadAllText(_tasksFilePath);
+            var tasks = JsonSerializer.Deserialize<List<TaskItem>>(json);
+            TaskPredictionComboBox.ItemsSource = tasks;
+            if (tasks != null && tasks.Any()) TaskPredictionComboBox.SelectedIndex = 0;
         }
 
         private void PredictButton_Click(object sender, RoutedEventArgs e)
@@ -119,34 +83,24 @@ namespace WorkPartner
                 TaskName = (TaskPredictionComboBox.SelectedItem as TaskItem).Text,
                 DayOfWeek = (float)DayOfWeekPredictionComboBox.SelectedIndex,
                 Hour = (float)HourPredictionComboBox.SelectedIndex,
-                Duration = 60 // 예측은 1시간(60분) 기준으로 고정
+                Duration = 60
             };
 
-            try
-            {
-                float predictedScore = _predictionService.Predict(input);
-                if (predictedScore > 0)
-                {
-                    PredictionResultTextBlock.Text = $"예상 집중도: {predictedScore:F2} / 5.0";
-                }
-                else
-                {
-                    PredictionResultTextBlock.Text = "아직 예측할 데이터가 충분하지 않아요.";
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"예측 중 오류가 발생했습니다: {ex.Message}", "예측 오류", MessageBoxButton.OK, MessageBoxImage.Error);
-                PredictionResultTextBlock.Text = "예측 실패";
-            }
+            float predictedScore = _predictionService.Predict(input);
+            PredictionResultTextBlock.Text = $"예상 집중도: {predictedScore:F2} / 5.0";
         }
 
         private void LoadTimeLogs()
         {
-            _allTimeLogs = DataManager.LoadData<List<TimeLogEntry>>(DataManager.TimeLogFilePath) ?? new List<TimeLogEntry>();
+            _allTimeLogs.Clear();
+            if (File.Exists(_timeLogFilePath))
+            {
+                var json = File.ReadAllText(_timeLogFilePath);
+                var loadedLogs = JsonSerializer.Deserialize<List<TimeLogEntry>>(json);
+                if (loadedLogs != null) _allTimeLogs = loadedLogs;
+            }
         }
 
-        // ... (나머지 코드는 동일) ...
         private void AnalyzeOverallStats()
         {
             var totalWorkTime = new TimeSpan(_allTimeLogs.Sum(log => log.Duration.Ticks));
@@ -246,7 +200,7 @@ namespace WorkPartner
         private void CustomDateButton_Click(object sender, RoutedEventArgs e) { if (StartDatePicker.SelectedDate.HasValue && EndDatePicker.SelectedDate.HasValue) { UpdateTaskAnalysis(StartDatePicker.SelectedDate.Value, EndDatePicker.SelectedDate.Value); } else { MessageBox.Show("시작 날짜와 종료 날짜를 모두 선택해주세요."); } }
     }
 
-    //public class TaskAnalysisResult { public string TaskName { get; set; } public TimeSpan TotalTime { get; set; } public string TotalTimeFormatted => $"{(int)TotalTime.TotalHours} 시간 {TotalTime.Minutes} 분"; }
-    //public class WorkRestPattern { public int WorkDurationMinutes { get; set; } public int RestDurationMinutes { get; set; } public int NextSessionFocusScore { get; set; } }
-    //public class TaskFocusAnalysisResult { public string TaskName { get; set; } public double AverageFocusScore { get; set; } public TimeSpan TotalTime { get; set; } public string TotalTimeFormatted => $"{(int)TotalTime.TotalHours}시간 {TotalTime.Minutes}분"; }
+    public class TaskAnalysisResult { public string TaskName { get; set; } public TimeSpan TotalTime { get; set; } public string TotalTimeFormatted => $"{(int)TotalTime.TotalHours} 시간 {TotalTime.Minutes} 분"; }
+    public class WorkRestPattern { public int WorkDurationMinutes { get; set; } public int RestDurationMinutes { get; set; } public int NextSessionFocusScore { get; set; } }
+    public class TaskFocusAnalysisResult { public string TaskName { get; set; } public double AverageFocusScore { get; set; } public TimeSpan TotalTime { get; set; } public string TotalTimeFormatted => $"{(int)TotalTime.TotalHours}시간 {TotalTime.Minutes}분"; }
 }
