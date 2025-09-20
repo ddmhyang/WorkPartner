@@ -1,4 +1,6 @@
-﻿using System;
+﻿// 파일: ClosetPage.xaml.cs (수정)
+// [수정] DataManager의 Load/Save 메서드를 사용하도록 수정하고, 키 타입을 ItemType으로 변경
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -14,14 +16,19 @@ namespace WorkPartner
 {
     public partial class ClosetPage : UserControl
     {
-        private readonly string _settingsFilePath = DataManager.SettingsFilePath;
-        private readonly string _itemsDbFilePath = DataManager.ItemsDbFilePath;
         private AppSettings _settings;
         private List<ShopItem> _fullShopInventory;
 
         public ClosetPage()
         {
             InitializeComponent();
+            this.IsVisibleChanged += (s, e) =>
+            {
+                if ((bool)e.NewValue)
+                {
+                    LoadData();
+                }
+            };
         }
 
         public void LoadData()
@@ -34,33 +41,17 @@ namespace WorkPartner
 
         private void LoadSettings()
         {
-            if (!File.Exists(_settingsFilePath)) { _settings = new AppSettings(); return; }
-            var json = File.ReadAllText(_settingsFilePath);
-            _settings = JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
+            _settings = DataManager.LoadData<AppSettings>(DataManager.SettingsFilePath);
         }
 
         private void SaveSettings()
         {
-            var options = new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
-            var json = JsonSerializer.Serialize(_settings, options);
-            File.WriteAllText(_settingsFilePath, json);
+            DataManager.SaveData(DataManager.SettingsFilePath, _settings);
         }
 
         private void LoadFullInventory()
         {
-            if (File.Exists(_itemsDbFilePath))
-            {
-                var json = File.ReadAllText(_itemsDbFilePath);
-                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-                options.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
-                _fullShopInventory = JsonSerializer.Deserialize<List<ShopItem>>(json, options) ?? new List<ShopItem>();
-            }
-            else
-            {
-                // [수정] 어떤 MessageBox를 사용할지 명확히 지정합니다. (System.Windows.MessageBox)
-                System.Windows.MessageBox.Show("아이템 데이터베이스 파일(items_db.json)을 찾을 수 없습니다.", "오류");
-                _fullShopInventory = new List<ShopItem>();
-            }
+            _fullShopInventory = DataManager.LoadData<List<ShopItem>>(DataManager.ItemsDbFilePath) ?? new List<ShopItem>();
         }
 
         private void PopulateCategories()
@@ -102,34 +93,39 @@ namespace WorkPartner
 
                 if (!_settings.OwnedItemIds.Contains(itemId) && clickedItem.Price > 0)
                 {
-                    // [수정] 어떤 MessageBox를 사용할지 명확히 지정합니다. (System.Windows.MessageBox)
                     System.Windows.MessageBox.Show("아직 보유하지 않은 아이템입니다. 상점에서 먼저 구매해주세요!", "알림");
                     return;
                 }
 
+                // 색상 아이템이 아닌 경우에만 장착/해제 로직 수행
                 if (!IsColorCategory(clickedItem.Type))
                 {
+                    // 현재 아이템이 이미 장착된 상태인지 확인
                     if (_settings.EquippedItems.ContainsKey(clickedItem.Type) && _settings.EquippedItems[clickedItem.Type] == itemId)
                     {
+                        // 장착 해제
                         _settings.EquippedItems.Remove(clickedItem.Type);
                     }
                     else
                     {
+                        // 장착
                         _settings.EquippedItems[clickedItem.Type] = itemId;
                     }
-                }
 
-                SaveSettings();
-                UpdateCharacterPreview();
-                UpdateItemButtonsState();
+                    SaveSettings();
+                    UpdateCharacterPreview();
+                    UpdateItemButtonsState();
+                }
             }
         }
+
 
         private void MyColorPicker_SelectedColorChanged(object sender, RoutedPropertyChangedEventArgs<Color?> e)
         {
             if (CategoryListBox.SelectedItem is ItemType selectedType && MyColorPicker.SelectedColor.HasValue)
             {
                 if (!IsColorCategory(selectedType)) return;
+                // [수정] Dictionary의 키를 string 대신 ItemType으로 사용
                 _settings.CustomColors[selectedType] = MyColorPicker.SelectedColor.Value.ToString();
                 SaveSettings();
                 UpdateCharacterPreview();
@@ -138,10 +134,18 @@ namespace WorkPartner
 
         private void LoadCustomColorToPicker(ItemType type)
         {
+            // [수정] Dictionary의 키를 string 대신 ItemType으로 사용
             if (_settings.CustomColors.ContainsKey(type))
             {
-                var color = (Color)ColorConverter.ConvertFromString(_settings.CustomColors[type]);
-                MyColorPicker.SelectedColor = color;
+                try
+                {
+                    var color = (Color)ColorConverter.ConvertFromString(_settings.CustomColors[type]);
+                    MyColorPicker.SelectedColor = color;
+                }
+                catch
+                {
+                    MyColorPicker.SelectedColor = Colors.White; // 기본값
+                }
             }
             else
             {
@@ -153,6 +157,8 @@ namespace WorkPartner
         {
             Dispatcher.BeginInvoke(new Action(() =>
             {
+                if (ItemsListView.ItemsSource == null) return; // 아이템 목록이 비어있으면 종료
+
                 foreach (var item in ItemsListView.Items)
                 {
                     var container = ItemsListView.ItemContainerGenerator.ContainerFromItem(item) as FrameworkElement;
@@ -161,8 +167,13 @@ namespace WorkPartner
                     if (button == null || !(button.Tag is Guid itemId)) continue;
                     var shopItem = _fullShopInventory.FirstOrDefault(i => i.Id == itemId);
                     if (shopItem == null) continue;
+
                     bool isOwned = _settings.OwnedItemIds.Contains(itemId) || shopItem.Price == 0;
+                    // [수정] Dictionary의 키를 string 대신 ItemType으로 사용
                     bool isEquipped = !IsColorCategory(shopItem.Type) && _settings.EquippedItems.ContainsKey(shopItem.Type) && _settings.EquippedItems[shopItem.Type] == itemId;
+
+                    button.IsEnabled = isOwned; // 구매하지 않은 아이템은 비활성화
+                    button.Opacity = isOwned ? 1.0 : 0.4; // 비활성화 시 시각적 표시
 
                     if (isEquipped)
                     {
@@ -174,7 +185,6 @@ namespace WorkPartner
                         button.BorderBrush = SystemColors.ControlDarkBrush;
                         button.BorderThickness = new Thickness(1);
                     }
-                    button.Opacity = isOwned ? 1.0 : 0.5;
                 }
             }), System.Windows.Threading.DispatcherPriority.ContextIdle);
         }
@@ -189,7 +199,6 @@ namespace WorkPartner
 
         private void UpdateCharacterPreview()
         {
-            // UserControl의 public 메서드를 호출하여 캐릭터를 새로고침합니다.
             CharacterPreviewControl.UpdateCharacter();
         }
 

@@ -1,4 +1,5 @@
-﻿// 파일: DashboardPage.xaml.cs
+﻿// 파일: DashboardPage.xaml.cs (수정)
+// [수정] DataManager의 Load/Save 메서드를 사용하도록 수정
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -10,19 +11,19 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using WorkPartner.AI;
+using Microsoft.Win32;
+using System.Text;
+
 
 namespace WorkPartner
 {
     public partial class DashboardPage : UserControl
     {
         #region 변수 선언
-        private readonly string _tasksFilePath = DataManager.TasksFilePath;
-        private readonly string _todosFilePath = DataManager.TodosFilePath;
-        private readonly string _timeLogFilePath = DataManager.TimeLogFilePath;
-        private readonly string _settingsFilePath = DataManager.SettingsFilePath;
         public ObservableCollection<TaskItem> TaskItems { get; set; }
         public ObservableCollection<TodoItem> TodoItems { get; set; } // 모든 ToDo 항목
         public ObservableCollection<TodoItem> FilteredTodoItems { get; set; } // 화면에 표시될 ToDo 항목
@@ -105,7 +106,8 @@ namespace WorkPartner
             if (string.IsNullOrEmpty(taskName))
                 return new SolidColorBrush(Colors.LightGray);
 
-            if (_settings.TaskColors != null && _settings.TaskColors.TryGetValue(taskName, out string colorHex))
+            // _settings 객체가 null일 경우를 대비
+            if (_settings?.TaskColors != null && _settings.TaskColors.TryGetValue(taskName, out string colorHex))
             {
                 try
                 {
@@ -135,6 +137,8 @@ namespace WorkPartner
             LoadTodos();
             LoadTimeLogs();
             UpdateCoinDisplay();
+            RecalculateAllTotals();
+            RenderTimeTable();
         }
 
         public void LoadSettings()
@@ -145,22 +149,65 @@ namespace WorkPartner
         private void OnSettingsUpdated()
         {
             _settings = DataManager.LoadSettings();
+            // 설정이 변경되면 UI를 다시 그려야 할 수 있습니다.
+            RenderTimeTable();
         }
 
         private void SaveSettings() { DataManager.SaveSettingsAndNotify(_settings); }
-        private void LoadTasks() { if (!File.Exists(_tasksFilePath)) return; var json = File.ReadAllText(_tasksFilePath); TaskItems = JsonSerializer.Deserialize<ObservableCollection<TaskItem>>(json) ?? new ObservableCollection<TaskItem>(); TaskListBox.ItemsSource = TaskItems; }
-        private void SaveTasks() { var options = new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }; var json = JsonSerializer.Serialize(TaskItems, options); File.WriteAllText(_tasksFilePath, json); }
+
+        private void LoadTasks()
+        {
+            var loadedTasks = DataManager.LoadData<ObservableCollection<TaskItem>>(DataManager.TasksFilePath);
+            TaskItems.Clear();
+            if (loadedTasks != null)
+            {
+                foreach (var task in loadedTasks)
+                {
+                    TaskItems.Add(task);
+                }
+            }
+        }
+
+        private void SaveTasks()
+        {
+            DataManager.SaveData(DataManager.TasksFilePath, TaskItems);
+        }
 
         private void LoadTodos()
         {
-            if (!File.Exists(_todosFilePath)) return;
-            var json = File.ReadAllText(_todosFilePath);
-            TodoItems = JsonSerializer.Deserialize<ObservableCollection<TodoItem>>(json) ?? new ObservableCollection<TodoItem>();
+            var loadedTodos = DataManager.LoadData<ObservableCollection<TodoItem>>(DataManager.TodosFilePath);
+            TodoItems.Clear();
+            if (loadedTodos != null)
+            {
+                foreach (var todo in loadedTodos)
+                {
+                    TodoItems.Add(todo);
+                }
+            }
             FilterTodos();
         }
-        private void SaveTodos() { var options = new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }; var json = JsonSerializer.Serialize(TodoItems, options); File.WriteAllText(_todosFilePath, json); }
-        private void LoadTimeLogs() { if (!File.Exists(_timeLogFilePath)) return; var json = File.ReadAllText(_timeLogFilePath); TimeLogEntries = JsonSerializer.Deserialize<ObservableCollection<TimeLogEntry>>(json) ?? new ObservableCollection<TimeLogEntry>(); }
-        private void SaveTimeLogs() { var options = new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }; var json = JsonSerializer.Serialize(TimeLogEntries, options); File.WriteAllText(_timeLogFilePath, json); }
+
+        private void SaveTodos()
+        {
+            DataManager.SaveData(DataManager.TodosFilePath, TodoItems);
+        }
+
+        private void LoadTimeLogs()
+        {
+            var loadedLogs = DataManager.LoadData<ObservableCollection<TimeLogEntry>>(DataManager.TimeLogFilePath);
+            TimeLogEntries.Clear();
+            if (loadedLogs != null)
+            {
+                foreach (var log in loadedLogs)
+                {
+                    TimeLogEntries.Add(log);
+                }
+            }
+        }
+        private void SaveTimeLogs()
+        {
+            DataManager.SaveData(DataManager.TimeLogFilePath, TimeLogEntries);
+        }
         #endregion
 
         #region UI 이벤트 핸들러
@@ -175,8 +222,7 @@ namespace WorkPartner
         {
             if (e.NewValue is true)
             {
-                LoadSettings();
-                UpdateCoinDisplay();
+                LoadAllData();
             }
         }
 
@@ -221,16 +267,20 @@ namespace WorkPartner
                         return;
                     }
 
-                    // 1. Update the task item itself
-                    selectedTask.Text = newName;
+                    // Update Task in TaskItems
+                    var taskToUpdate = TaskItems.FirstOrDefault(t => t.Text == oldName);
+                    if (taskToUpdate != null)
+                    {
+                        taskToUpdate.Text = newName;
+                    }
 
-                    // 2. Update all time logs
+                    // Update all time logs
                     foreach (var log in TimeLogEntries.Where(l => l.TaskText == oldName))
                     {
                         log.TaskText = newName;
                     }
 
-                    // 3. Update color settings
+                    // Update color settings
                     if (_settings.TaskColors.ContainsKey(oldName))
                     {
                         var color = _settings.TaskColors[oldName];
@@ -244,12 +294,12 @@ namespace WorkPartner
                         _taskColors[newName] = colorBrush;
                     }
 
-                    // 4. Save everything
+                    // Save everything
                     SaveTasks();
                     SaveTimeLogs();
                     SaveSettings();
 
-                    // 5. Refresh UI
+                    // Refresh UI
                     TaskListBox.Items.Refresh();
                     RenderTimeTable();
                 }
@@ -349,8 +399,6 @@ namespace WorkPartner
             return false;
         }
 
-        private void TodoInput_KeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Enter) AddTodoButton_Click(sender, e); }
-
         private void TodoTextBox_KeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Enter) SaveTodos(); }
 
         private void AddSubTaskMenuItem_Click(object sender, RoutedEventArgs e)
@@ -394,7 +442,7 @@ namespace WorkPartner
         private void BgmPlayButton_Click(object sender, RoutedEventArgs e)
         {
             string bgmFilePath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Sounds", "whitenoise.mp3");
-            if (!File.Exists(bgmFilePath)) { MessageBox.Show("백색 소음 파일을 찾을 수 없습니다.\n'Sounds/whitenoise.mp3' 경로에 파일을 추가해주세요.", "오류"); return; }
+            if (!File.Exists(bgmFilePath)) { MessageBox.Show("백색 소음 파일을 찾을 수 없습니다.\n'Sounds/whitenoitse.mp3' 경로에 파일을 추가해주세요.", "오류"); return; }
             if (_isBgmPlaying) { _bgmPlayer.Stop(); BgmPlayButton.Content = "백색 소음 재생"; }
             else { _bgmPlayer.Open(new Uri(bgmFilePath)); _bgmPlayer.Play(); BgmPlayButton.Content = "재생 중..."; }
             _isBgmPlaying = !_isBgmPlaying;
@@ -413,7 +461,7 @@ namespace WorkPartner
             }
         }
 
-        private void TodoNextDayButton_Click(object sender, RoutedEventArgs e)
+        private void NextDayButton_Click(object sender, RoutedEventArgs e)
         {
             if (TodoDatePicker.SelectedDate.HasValue)
             {
@@ -430,114 +478,169 @@ namespace WorkPartner
 
         private void Timer_Tick(object sender, EventArgs e)
         {
-            if (_stopwatch.IsRunning && _lastUnratedSession != null)
+            try
             {
-                SessionReviewPanel.Visibility = Visibility.Collapsed;
-                _lastUnratedSession = null;
+                if (_stopwatch.IsRunning && _lastUnratedSession != null)
+                {
+                    SessionReviewPanel.Visibility = Visibility.Collapsed;
+                    _lastUnratedSession = null;
+                }
+                HandleStopwatchMode();
+                CheckFocusAndSuggest();
             }
-            HandleStopwatchMode();
-            CheckFocusAndSuggest();
+            catch (Exception ex)
+            {
+                // 타이머 이벤트에서 발생하는 예외는 전역 핸들러가 잡지 못할 수 있으므로, 여기서 직접 처리합니다.
+                _timer.Stop(); // 타이머를 멈춰서 반복적인 오류를 방지합니다.
+                LogException(ex); // 로깅 메서드를 호출합니다.
+                MessageBox.Show($"타이머 실행 중 오류가 발생했습니다: {ex.Message}\n앱을 다시 시작해주세요.", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void LogException(Exception ex)
+        {
+            try
+            {
+                string logDirectory = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "WorkPartner", "Logs");
+                Directory.CreateDirectory(logDirectory);
+                string logFilePath = System.IO.Path.Combine(logDirectory, "error_log.txt");
+
+                StringBuilder sb = new StringBuilder();
+                sb.AppendLine("====================================================");
+                sb.AppendLine($"Timestamp: {DateTime.Now}");
+                sb.AppendLine($"Exception Type: {ex.GetType().FullName}");
+                sb.AppendLine($"Message: {ex.Message}");
+                sb.AppendLine("Stack Trace:");
+                sb.AppendLine(ex.StackTrace);
+                if (ex.InnerException != null)
+                {
+                    sb.AppendLine("--- Inner Exception ---");
+                    sb.AppendLine($"Type: {ex.InnerException.GetType().FullName}");
+                    sb.AppendLine($"Message: {ex.InnerException.Message}");
+                    sb.AppendLine("Stack Trace:");
+                    sb.AppendLine(ex.InnerException.StackTrace);
+                }
+                sb.AppendLine("====================================================");
+                sb.AppendLine();
+
+                File.AppendAllText(logFilePath, sb.ToString());
+            }
+            catch { /* 로깅 실패 시 더 이상 할 수 있는 것이 없습니다. */ }
         }
 
         private void HandleStopwatchMode()
         {
-            string activeProcess = ActiveWindowHelper.GetActiveProcessName();
-            string activeUrl = ActiveWindowHelper.GetActiveBrowserTabUrl();
-            string activeTitle = string.IsNullOrEmpty(activeUrl) ? ActiveWindowHelper.GetActiveWindowTitle().ToLower() : activeUrl;
-
-            ActiveProcessDisplay.Text = $"활성: {activeTitle}";
-            string keywordToCheck = !string.IsNullOrEmpty(activeUrl) ? activeUrl : activeProcess;
-
-            if (_settings.DistractionProcesses.Any(p => keywordToCheck.Contains(p)))
+            try
             {
-                if (_stopwatch.IsRunning || _isPausedForIdle)
-                {
-                    LogWorkSession(_isPausedForIdle ? _sessionStartTime.Add(_stopwatch.Elapsed) : (DateTime?)null);
-                    _stopwatch.Reset();
-                }
-                _isPausedForIdle = false;
-                CurrentTaskDisplay.Text = "[딴짓 중!]";
-                if (_isFocusModeActive && (DateTime.Now - _lastNagTime).TotalSeconds > _settings.FocusModeNagIntervalSeconds)
-                {
-                    var alert = new AlertWindow(_settings.FocusModeNagMessage) { Owner = Application.Current.MainWindow };
-                    alert.ShowDialog();
-                    _lastNagTime = DateTime.Now;
-                }
-                UpdateLiveTimeDisplays();
-                return;
-            }
+                string activeProcess = ActiveWindowHelper.GetActiveProcessName();
+                string activeUrl = ActiveWindowHelper.GetActiveBrowserTabUrl();
+                string activeTitle = string.IsNullOrEmpty(activeUrl) ? ActiveWindowHelper.GetActiveWindowTitle().ToLower() : activeUrl;
 
-            bool isTrackable = _settings.WorkProcesses.Any(p => keywordToCheck.Contains(p));
-            bool isPassive = _settings.PassiveProcesses.Any(p => keywordToCheck.Contains(p));
+                ActiveProcessDisplay.Text = $"활성: {activeTitle}";
+                string keywordToCheck = !string.IsNullOrEmpty(activeUrl) ? activeUrl : activeProcess;
 
-            if (isTrackable || isPassive)
-            {
-                bool isCurrentlyIdle = _settings.IsIdleDetectionEnabled && !isPassive && ActiveWindowHelper.GetIdleTime().TotalSeconds > _settings.IdleTimeoutSeconds;
-
-                if (isCurrentlyIdle)
+                if (_settings.DistractionProcesses.Any(p => keywordToCheck.Contains(p)))
                 {
-                    if (_stopwatch.IsRunning)
+                    if (_stopwatch.IsRunning || _isPausedForIdle)
                     {
-                        _stopwatch.Stop();
-                        _isPausedForIdle = true;
-                        _idleStartTime = DateTime.Now;
+                        LogWorkSession(_isPausedForIdle ? _sessionStartTime.Add(_stopwatch.Elapsed) : (DateTime?)null);
+                        _stopwatch.Reset();
                     }
-                    else if (_isPausedForIdle)
+                    _isPausedForIdle = false;
+                    CurrentTaskDisplay.Text = "[딴짓 중!]";
+                    if (_isFocusModeActive && (DateTime.Now - _lastNagTime).TotalSeconds > _settings.FocusModeNagIntervalSeconds)
                     {
-                        if ((DateTime.Now - _idleStartTime).TotalSeconds > IdleGraceSeconds)
+                        var alert = new AlertWindow(_settings.FocusModeNagMessage) { Owner = Application.Current.MainWindow };
+                        alert.ShowDialog();
+                        _lastNagTime = DateTime.Now;
+                    }
+                    UpdateLiveTimeDisplays();
+                    return;
+                }
+
+                bool isTrackable = _settings.WorkProcesses.Any(p => keywordToCheck.Contains(p));
+                bool isPassive = _settings.PassiveProcesses.Any(p => keywordToCheck.Contains(p));
+
+                if (isTrackable || isPassive)
+                {
+                    bool isCurrentlyIdle = _settings.IsIdleDetectionEnabled && !isPassive && ActiveWindowHelper.GetIdleTime().TotalSeconds > _settings.IdleTimeoutSeconds;
+
+                    if (isCurrentlyIdle)
+                    {
+                        if (_stopwatch.IsRunning)
                         {
-                            LogWorkSession(_sessionStartTime.Add(_stopwatch.Elapsed));
-                            _stopwatch.Reset();
+                            _stopwatch.Stop();
+                            _isPausedForIdle = true;
+                            _idleStartTime = DateTime.Now;
+                        }
+                        else if (_isPausedForIdle)
+                        {
+                            if ((DateTime.Now - _idleStartTime).TotalSeconds > IdleGraceSeconds)
+                            {
+                                LogWorkSession(_sessionStartTime.Add(_stopwatch.Elapsed));
+                                _stopwatch.Reset();
+                                _isPausedForIdle = false;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        if (_isPausedForIdle)
+                        {
                             _isPausedForIdle = false;
-                        }
-                    }
-                }
-                else
-                {
-                    if (_isPausedForIdle)
-                    {
-                        _isPausedForIdle = false;
-                        _stopwatch.Start();
-                    }
-                    else if (!_stopwatch.IsRunning)
-                    {
-                        if (_currentWorkingTask == null && TaskItems.Any())
-                        {
-                            TaskListBox.SelectedIndex = 0;
-                        }
-                        if (_currentWorkingTask != null)
-                        {
-                            _sessionStartTime = DateTime.Now;
                             _stopwatch.Start();
                         }
+                        else if (!_stopwatch.IsRunning)
+                        {
+                            if (_currentWorkingTask == null && TaskItems.Any())
+                            {
+                                TaskListBox.SelectedIndex = 0;
+                            }
+                            if (_currentWorkingTask != null)
+                            {
+                                _sessionStartTime = DateTime.Now;
+                                _stopwatch.Start();
+                            }
+                        }
                     }
-                }
 
-                if (_isPausedForIdle)
-                {
-                    CurrentTaskDisplay.Text = $"[자리 비움] {_currentWorkingTask?.Text ?? ""}";
-                }
-                else if (_stopwatch.IsRunning)
-                {
-                    CurrentTaskDisplay.Text = $"현재 과목: {_currentWorkingTask?.Text ?? "선택된 과목 없음"}";
+                    if (_isPausedForIdle)
+                    {
+                        CurrentTaskDisplay.Text = $"[자리 비움] {_currentWorkingTask?.Text ?? ""}";
+                    }
+                    else if (_stopwatch.IsRunning)
+                    {
+                        CurrentTaskDisplay.Text = $"현재 과목: {_currentWorkingTask?.Text ?? "선택된 과목 없음"}";
+                    }
+                    else
+                    {
+                        CurrentTaskDisplay.Text = "선택된 과목 없음";
+                    }
                 }
                 else
                 {
+                    if (_stopwatch.IsRunning || _isPausedForIdle)
+                    {
+                        LogWorkSession(_isPausedForIdle ? _sessionStartTime.Add(_stopwatch.Elapsed) : (DateTime?)null);
+                        _stopwatch.Reset();
+                    }
+                    _isPausedForIdle = false;
                     CurrentTaskDisplay.Text = "선택된 과목 없음";
                 }
             }
-            else
+            catch (Exception ex)
             {
-                if (_stopwatch.IsRunning || _isPausedForIdle)
-                {
-                    LogWorkSession(_isPausedForIdle ? _sessionStartTime.Add(_stopwatch.Elapsed) : (DateTime?)null);
-                    _stopwatch.Reset();
-                }
+                // Handle exceptions that might occur during window/process checks
+                LogException(ex);
+                // Optionally reset state to avoid repeated errors
+                _stopwatch.Reset();
                 _isPausedForIdle = false;
-                CurrentTaskDisplay.Text = "선택된 과목 없음";
+                CurrentTaskDisplay.Text = "오류 발생";
             }
-
-            UpdateLiveTimeDisplays();
+            finally
+            {
+                UpdateLiveTimeDisplays();
+            }
         }
 
 
@@ -615,12 +718,12 @@ namespace WorkPartner
             if (_stopwatch.IsRunning)
             {
                 timeToDisplay = _totalTimeTodayFromLogs + _stopwatch.Elapsed;
-                _miniTimer?.SetRunningStyle();
+                if (_miniTimer != null) _miniTimer.SetRunningStyle();
             }
             else
             {
                 timeToDisplay = _totalTimeTodayFromLogs;
-                _miniTimer?.SetStoppedStyle();
+                if (_miniTimer != null) _miniTimer.SetStoppedStyle();
             }
 
             string timeString = timeToDisplay.ToString(@"hh\:mm\:ss");
@@ -830,20 +933,29 @@ namespace WorkPartner
             SelectionCanvas.ReleaseMouseCapture();
             SelectionRectangle.Visibility = Visibility.Collapsed;
 
-            var endPoint = e.GetPosition(SelectionCanvas);
-            var selectionRect = new Rect(_dragStartPoint, endPoint);
+            var endPoint = e.GetPosition(TimeTableContainer); // 기준을 Canvas가 아닌 TimeTableContainer로 변경
+            var startPoint = _dragStartPoint;
 
+            // 좌표가 뒤바뀌었을 경우를 대비하여 정규화
+            var rect = new Rect(
+                Math.Min(startPoint.X, endPoint.X),
+                Math.Min(startPoint.Y, endPoint.Y),
+                Math.Abs(startPoint.X - endPoint.X),
+                Math.Abs(startPoint.Y - endPoint.Y)
+            );
+
+            // 시간 계산을 위한 보정
             double totalHeight = TimeTableContainer.ActualHeight;
-            if (totalHeight == 0) return;
-            double minutesPerPixel = (24 * 60) / totalHeight;
+            if (totalHeight <= 0) return;
+            double hourHeight = totalHeight / 24;
 
-            var startTime = TimeSpan.FromMinutes(selectionRect.Top * minutesPerPixel);
-            var endTime = TimeSpan.FromMinutes(selectionRect.Bottom * minutesPerPixel);
+            // 선택 영역에 해당하는 시간 범위 계산
+            var startTime = _currentDateForTimeline.Date.AddHours(rect.Top / hourHeight);
+            var endTime = _currentDateForTimeline.Date.AddHours(rect.Bottom / hourHeight);
 
+            // 선택된 시간 범위 내에 있는 모든 로그를 찾음
             var logsToEdit = TimeLogEntries
-                .Where(log => log.StartTime.Date == _currentDateForTimeline.Date &&
-                              log.EndTime.TimeOfDay > startTime &&
-                              log.StartTime.TimeOfDay < endTime)
+                .Where(log => log.StartTime < endTime && log.EndTime > startTime)
                 .ToList();
 
             if (logsToEdit.Any())
@@ -857,10 +969,12 @@ namespace WorkPartner
                         log.TaskText = newTaskName;
                     }
                     SaveTimeLogs();
-                    RenderTimeTable();
+                    RenderTimeTable(); // 변경 사항을 즉시 타임라인에 반영
                 }
             }
         }
+
+
 
         private void BulkEditButton_Click(object sender, RoutedEventArgs e)
         {
