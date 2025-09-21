@@ -1,5 +1,4 @@
-﻿// 파일: DashboardPage.xaml.cs
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
@@ -19,14 +18,14 @@ namespace WorkPartner
 {
     public partial class DashboardPage : UserControl
     {
-        #region 변수 선언
+        #region Variable Declarations
         private readonly string _tasksFilePath = DataManager.TasksFilePath;
         private readonly string _todosFilePath = DataManager.TodosFilePath;
         private readonly string _timeLogFilePath = DataManager.TimeLogFilePath;
         private readonly string _settingsFilePath = DataManager.SettingsFilePath;
         public ObservableCollection<TaskItem> TaskItems { get; set; }
-        public ObservableCollection<TodoItem> TodoItems { get; set; } // 모든 ToDo 항목
-        public ObservableCollection<TodoItem> FilteredTodoItems { get; set; } // 화면에 표시될 ToDo 항목
+        public ObservableCollection<TodoItem> TodoItems { get; set; } // All ToDo items
+        public ObservableCollection<TodoItem> FilteredTodoItems { get; set; } // ToDo items displayed on screen
         public ObservableCollection<TimeLogEntry> TimeLogEntries { get; set; }
         public ObservableCollection<string> SuggestedTags { get; set; }
         private DispatcherTimer _timer;
@@ -43,17 +42,21 @@ namespace WorkPartner
         private TimeLogEntry _lastUnratedSession;
         private MiniTimerWindow _miniTimer;
 
-        // AI 및 미디어 기능용 변수
+        // Variables for AI and media features
         private PredictionService _predictionService;
-        private MediaPlayer _bgmPlayer;
-        private bool _isBgmPlaying = false;
         private DateTime _lastSuggestionTime;
-        private DateTime _currentDateForTimeline = DateTime.Today; // 타임라인에 표시할 날짜
+        private DateTime _currentDateForTimeline = DateTime.Today; // Date to display on the timeline
 
-        // 자리 비움 감지 관련 변수
+        // Ambient Sound Players (New)
+        private MediaPlayer _wavePlayer;
+        private MediaPlayer _forestPlayer;
+        private MediaPlayer _rainPlayer;
+        private MediaPlayer _bonfirePlayer;
+
+        // Variables for idle detection
         private bool _isPausedForIdle = false;
         private DateTime _idleStartTime;
-        private const int IdleGraceSeconds = 10; // 10초 유예 시간
+        private const int IdleGraceSeconds = 10; // 10-second grace period
         #endregion
 
         private Dictionary<string, SolidColorBrush> _taskColors = new Dictionary<string, SolidColorBrush>();
@@ -76,9 +79,9 @@ namespace WorkPartner
             InitializeData();
             LoadAllData();
             InitializeTimer();
+            InitializeAmbientSounds(); // Call sound initialization
 
             _predictionService = new PredictionService();
-            _bgmPlayer = new MediaPlayer();
             _lastSuggestionTime = DateTime.MinValue;
             DataManager.SettingsUpdated += OnSettingsUpdated;
         }
@@ -99,7 +102,7 @@ namespace WorkPartner
 
         private SolidColorBrush GetColorForTask(string taskName)
         {
-            // 1. 설정 파일에서 먼저 색상을 찾습니다.
+            // 1. First, find the color in the settings file.
             if (_settings.TaskColors.TryGetValue(taskName, out string colorHex))
             {
                 try
@@ -108,26 +111,26 @@ namespace WorkPartner
                 }
                 catch
                 {
-                    // 설정 파일에 잘못된 색상 코드가 있을 경우 무시하고 아래에서 새로 할당합니다.
+                    // If there's an invalid color code in the settings file, ignore it and assign a new one below.
                 }
             }
 
-            // 2. 인-메모리 캐시에서 찾습니다.
+            // 2. Find it in the in-memory cache.
             if (_taskColors.ContainsKey(taskName))
             {
                 return _taskColors[taskName];
             }
 
-            // 3. 새로운 과목이면 색상을 할당하고 설정에 저장합니다.
+            // 3. If it's a new subject, assign a color and save it to settings.
             var newColor = _colorPalette[_colorIndex % _colorPalette.Count];
             _colorIndex++;
-            _taskColors[taskName] = newColor; // 캐시에 추가
-            _settings.TaskColors[taskName] = newColor.ToString(); // 설정에 추가
-            SaveSettings(); // 설정 파일 저장
+            _taskColors[taskName] = newColor; // Add to cache
+            _settings.TaskColors[taskName] = newColor.ToString(); // Add to settings
+            SaveSettings(); // Save the settings file
             return newColor;
         }
 
-        #region 데이터 저장 / 불러오기
+        #region Data Save / Load
         private void InitializeTimer() { _stopwatch = new Stopwatch(); _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) }; _timer.Tick += Timer_Tick; _timer.Start(); }
 
         public void LoadAllData()
@@ -136,7 +139,7 @@ namespace WorkPartner
             LoadTasks();
             LoadTodos();
             LoadTimeLogs();
-            UpdateCoinDisplay();
+            UpdateCharacterPanel(); // Call to update character info
         }
 
         public void LoadSettings()
@@ -158,14 +161,14 @@ namespace WorkPartner
             if (!File.Exists(_todosFilePath)) return;
             var json = File.ReadAllText(_todosFilePath);
             TodoItems = JsonSerializer.Deserialize<ObservableCollection<TodoItem>>(json) ?? new ObservableCollection<TodoItem>();
-            FilterTodos(); // 로드 후 필터링
+            FilterTodos(); // Filter after loading
         }
         private void SaveTodos() { var options = new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }; var json = JsonSerializer.Serialize(TodoItems, options); File.WriteAllText(_todosFilePath, json); }
         private void LoadTimeLogs() { if (!File.Exists(_timeLogFilePath)) return; var json = File.ReadAllText(_timeLogFilePath); TimeLogEntries = JsonSerializer.Deserialize<ObservableCollection<TimeLogEntry>>(json) ?? new ObservableCollection<TimeLogEntry>(); }
         private void SaveTimeLogs() { var options = new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }; var json = JsonSerializer.Serialize(TimeLogEntries, options); File.WriteAllText(_timeLogFilePath, json); }
         #endregion
 
-        #region UI 이벤트 핸들러
+        #region UI Event Handlers
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
             RecalculateAllTotals();
@@ -178,8 +181,8 @@ namespace WorkPartner
             if (e.NewValue is true)
             {
                 LoadSettings();
-                UpdateCoinDisplay();
-                //DashboardCharacterDisplay.UpdateCharacter();
+                UpdateCharacterPanel();
+                DashboardCharacterDisplay.UpdateCharacter();
             }
         }
 
@@ -224,16 +227,11 @@ namespace WorkPartner
                         return;
                     }
 
-                    // 1. Update the task item itself
                     selectedTask.Text = newName;
-
-                    // 2. Update all time logs
                     foreach (var log in TimeLogEntries.Where(l => l.TaskText == oldName))
                     {
                         log.TaskText = newName;
                     }
-
-                    // 3. Update color settings
                     if (_settings.TaskColors.ContainsKey(oldName))
                     {
                         var color = _settings.TaskColors[oldName];
@@ -246,13 +244,9 @@ namespace WorkPartner
                         _taskColors.Remove(oldName);
                         _taskColors[newName] = colorBrush;
                     }
-
-                    // 4. Save everything
                     SaveTasks();
                     SaveTimeLogs();
                     SaveSettings();
-
-                    // 5. Refresh UI
                     TaskListBox.Items.Refresh();
                     RenderTimeTable();
                 }
@@ -262,7 +256,6 @@ namespace WorkPartner
                 MessageBox.Show("수정할 과목을 목록에서 선택해주세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
             }
         }
-
 
         private void RateSessionButton_Click(object sender, RoutedEventArgs e)
         {
@@ -282,8 +275,40 @@ namespace WorkPartner
                 _lastUnratedSession = null;
             }
         }
-        private void SaveTodos_Event(object sender, RoutedEventArgs e) { if (sender is CheckBox checkBox && checkBox.DataContext is TodoItem todoItem) { if (todoItem.IsCompleted && !todoItem.HasBeenRewarded) { _settings.Coins += 10; todoItem.HasBeenRewarded = true; UpdateCoinDisplay(); SaveSettings(); SoundPlayer.PlayCompleteSound(); } } SaveTodos(); }
-        private void TaskListBox_SelectionChanged(object sender, SelectionChangedEventArgs e) { var selectedTask = TaskListBox.SelectedItem as TaskItem; if (_currentWorkingTask != selectedTask) { SessionReviewPanel.Visibility = Visibility.Collapsed; if (_stopwatch.IsRunning) { LogWorkSession(); _stopwatch.Reset(); } _currentWorkingTask = selectedTask; UpdateSelectedTaskTotalTimeDisplay(); if (_currentWorkingTask != null) CurrentTaskDisplay.Text = $"현재 과목: {_currentWorkingTask.Text}"; } }
+
+        private void SaveTodos_Event(object sender, RoutedEventArgs e)
+        {
+            if (sender is CheckBox checkBox && checkBox.DataContext is TodoItem todoItem)
+            {
+                if (todoItem.IsCompleted && !todoItem.HasBeenRewarded)
+                {
+                    _settings.Coins += 10;
+                    todoItem.HasBeenRewarded = true;
+                    UpdateCharacterPanel();
+                    SaveSettings();
+                    SoundPlayer.PlayCompleteSound();
+                }
+            }
+            SaveTodos();
+        }
+
+        private void TaskListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            var selectedTask = TaskListBox.SelectedItem as TaskItem;
+            if (_currentWorkingTask != selectedTask)
+            {
+                SessionReviewPanel.Visibility = Visibility.Collapsed;
+                if (_stopwatch.IsRunning)
+                {
+                    LogWorkSession();
+                    _stopwatch.Reset();
+                }
+                _currentWorkingTask = selectedTask;
+                UpdateSelectedTaskTotalTimeDisplay();
+                if (_currentWorkingTask != null)
+                    CurrentTaskDisplay.Text = $"현재 과목: {_currentWorkingTask.Text}";
+            }
+        }
 
         private void TaskInput_KeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Enter) { AddTaskButton_Click(sender, e); } }
 
@@ -291,7 +316,6 @@ namespace WorkPartner
         {
             if (TaskListBox.SelectedItem is TaskItem selectedTask)
             {
-                // Also remove color setting
                 if (_settings.TaskColors.ContainsKey(selectedTask.Text))
                 {
                     _settings.TaskColors.Remove(selectedTask.Text);
@@ -308,15 +332,14 @@ namespace WorkPartner
             var newTodo = new TodoItem
             {
                 Text = TodoInput.Text,
-                Date = TodoDatePicker.SelectedDate?.Date ?? DateTime.Today // Assign selected date
+                Date = TodoDatePicker.SelectedDate?.Date ?? DateTime.Today
             };
-
-            TodoItems.Add(newTodo); // Add to the master list
+            TodoItems.Add(newTodo);
             _lastAddedTodo = newTodo;
             UpdateTagSuggestions(_lastAddedTodo);
             TodoInput.Clear();
             SaveTodos();
-            FilterTodos(); // Re-apply filter to show the new item if it's for the selected day
+            FilterTodos();
         }
 
         private void DeleteTodoButton_Click(object sender, RoutedEventArgs e)
@@ -325,9 +348,9 @@ namespace WorkPartner
             {
                 if (MessageBox.Show($"'{selectedTodo.Text}' 할 일을 삭제하시겠습니까?", "삭제 확인", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
                 {
-                    TodoItems.Remove(selectedTodo); // Remove from the master list
+                    TodoItems.Remove(selectedTodo);
                     SaveTodos();
-                    FilterTodos(); // Re-filter the view
+                    FilterTodos();
                 }
             }
             else
@@ -347,7 +370,7 @@ namespace WorkPartner
                 var subTask = new TodoItem
                 {
                     Text = "새 하위 작업",
-                    Date = parentTodo.Date // Inherit date from parent
+                    Date = parentTodo.Date
                 };
                 parentTodo.SubTasks.Add(subTask);
                 SaveTodos();
@@ -356,20 +379,104 @@ namespace WorkPartner
 
         private void DeleteTodoMenuItem_Click(object sender, RoutedEventArgs e) { DeleteSelectedTodo(); }
 
-        private void AddTagMenuItem_Click(object sender, RoutedEventArgs e) { if ((sender as MenuItem)?.DataContext is TodoItem selectedTodo) { var inputWindow = new InputWindow("추가할 태그를 입력하세요:", "#태그") { Owner = Window.GetWindow(this) }; if (inputWindow.ShowDialog() == true) { string newTag = inputWindow.ResponseText; if (!string.IsNullOrWhiteSpace(newTag) && !selectedTodo.Tags.Contains(newTag)) { selectedTodo.Tags.Add(newTag); SaveTodos(); } } } }
-        private void SuggestedTag_Click(object sender, RoutedEventArgs e) { if (_lastAddedTodo != null && sender is Button button) { string tagToAdd = button.Content.ToString(); if (!_lastAddedTodo.Tags.Contains(tagToAdd)) { _lastAddedTodo.Tags.Add(tagToAdd); SuggestedTags.Remove(tagToAdd); SaveTodos(); } } }
-        private void AddManualLogButton_Click(object sender, RoutedEventArgs e) { var win = new AddLogWindow(TaskItems) { Owner = Window.GetWindow(this) }; if (win.ShowDialog() == true) { if (win.NewLogEntry != null) TimeLogEntries.Add(win.NewLogEntry); SaveTimeLogs(); RecalculateAllTotals(); RenderTimeTable(); } }
-        private void MemoButton_Click(object sender, RoutedEventArgs e) { if (_memoWindow == null || !_memoWindow.IsVisible) { _memoWindow = new MemoWindow { Owner = Window.GetWindow(this) }; _memoWindow.Show(); } else { _memoWindow.Activate(); } }
-        private void TimeLogRect_MouseLeftButtonDown(object sender, MouseButtonEventArgs e) { if ((sender as FrameworkElement)?.Tag is TimeLogEntry log) { var win = new AddLogWindow(TaskItems, log) { Owner = Window.GetWindow(this) }; if (win.ShowDialog() == true) { if (win.IsDeleted) TimeLogEntries.Remove(log); else { log.StartTime = win.NewLogEntry.StartTime; log.EndTime = win.NewLogEntry.EndTime; log.TaskText = win.NewLogEntry.TaskText; log.FocusScore = win.NewLogEntry.FocusScore; } SaveTimeLogs(); RecalculateAllTotals(); RenderTimeTable(); } } }
-        private void DeleteSelectedTodo() { if (TodoTreeView.SelectedItem is TodoItem selectedTodo) { var parent = FindParent(null, TodoItems, selectedTodo); if (parent != null) { parent.SubTasks.Remove(selectedTodo); } else { TodoItems.Remove(selectedTodo); } SaveTodos(); FilterTodos(); } else { MessageBox.Show("삭제할 할 일을 목록에서 선택해주세요."); } }
-
-        private void BgmPlayButton_Click(object sender, RoutedEventArgs e)
+        private void AddTagMenuItem_Click(object sender, RoutedEventArgs e)
         {
-            string bgmFilePath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Sounds", "whitenoise.mp3");
-            if (!File.Exists(bgmFilePath)) { MessageBox.Show("백색 소음 파일을 찾을 수 없습니다.\n'Sounds/whitenoise.mp3' 경로에 파일을 추가해주세요.", "오류"); return; }
-            if (_isBgmPlaying) { _bgmPlayer.Stop(); BgmPlayButton.Content = "백색 소음 재생"; }
-            else { _bgmPlayer.Open(new Uri(bgmFilePath)); _bgmPlayer.Play(); BgmPlayButton.Content = "재생 중..."; }
-            _isBgmPlaying = !_isBgmPlaying;
+            if ((sender as MenuItem)?.DataContext is TodoItem selectedTodo)
+            {
+                var inputWindow = new InputWindow("추가할 태그를 입력하세요:", "#태그") { Owner = Window.GetWindow(this) };
+                if (inputWindow.ShowDialog() == true)
+                {
+                    string newTag = inputWindow.ResponseText;
+                    if (!string.IsNullOrWhiteSpace(newTag) && !selectedTodo.Tags.Contains(newTag))
+                    {
+                        selectedTodo.Tags.Add(newTag);
+                        SaveTodos();
+                    }
+                }
+            }
+        }
+
+        private void SuggestedTag_Click(object sender, RoutedEventArgs e)
+        {
+            if (_lastAddedTodo != null && sender is Button button)
+            {
+                string tagToAdd = button.Content.ToString();
+                if (!_lastAddedTodo.Tags.Contains(tagToAdd))
+                {
+                    _lastAddedTodo.Tags.Add(tagToAdd);
+                    SuggestedTags.Remove(tagToAdd);
+                    SaveTodos();
+                }
+            }
+        }
+
+        private void AddManualLogButton_Click(object sender, RoutedEventArgs e)
+        {
+            var win = new AddLogWindow(TaskItems) { Owner = Window.GetWindow(this) };
+            if (win.ShowDialog() == true)
+            {
+                if (win.NewLogEntry != null) TimeLogEntries.Add(win.NewLogEntry);
+                SaveTimeLogs();
+                RecalculateAllTotals();
+                RenderTimeTable();
+            }
+        }
+
+        private void MemoButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_memoWindow == null || !_memoWindow.IsVisible)
+            {
+                _memoWindow = new MemoWindow { Owner = Window.GetWindow(this) };
+                _memoWindow.Show();
+            }
+            else
+            {
+                _memoWindow.Activate();
+            }
+        }
+
+        private void TimeLogRect_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.Tag is TimeLogEntry log)
+            {
+                var win = new AddLogWindow(TaskItems, log) { Owner = Window.GetWindow(this) };
+                if (win.ShowDialog() == true)
+                {
+                    if (win.IsDeleted) TimeLogEntries.Remove(log);
+                    else
+                    {
+                        log.StartTime = win.NewLogEntry.StartTime;
+                        log.EndTime = win.NewLogEntry.EndTime;
+                        log.TaskText = win.NewLogEntry.TaskText;
+                        log.FocusScore = win.NewLogEntry.FocusScore;
+                    }
+                    SaveTimeLogs();
+                    RecalculateAllTotals();
+                    RenderTimeTable();
+                }
+            }
+        }
+
+        private void DeleteSelectedTodo()
+        {
+            if (TodoTreeView.SelectedItem is TodoItem selectedTodo)
+            {
+                var parent = FindParent(null, TodoItems, selectedTodo);
+                if (parent != null)
+                {
+                    parent.SubTasks.Remove(selectedTodo);
+                }
+                else
+                {
+                    TodoItems.Remove(selectedTodo);
+                }
+                SaveTodos();
+                FilterTodos();
+            }
+            else
+            {
+                MessageBox.Show("삭제할 할 일을 목록에서 선택해주세요.");
+            }
         }
 
         private void TodoDatePicker_SelectedDateChanged(object sender, SelectionChangedEventArgs e)
@@ -392,9 +499,50 @@ namespace WorkPartner
                 TodoDatePicker.SelectedDate = TodoDatePicker.SelectedDate.Value.AddDays(1);
             }
         }
+
+        // New: Avatar decoration button click
+        private void AvatarButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (Window.GetWindow(this) is MainWindow mainWindow)
+            {
+                mainWindow.NavigateToAvatarPage();
+            }
+        }
+
+        // New: Ambient sound slider value changed
+        private void AmbientSound_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (sender is Slider slider)
+            {
+                double volume = slider.Value / 100.0;
+                switch (slider.Name)
+                {
+                    case "WaveSlider":
+                        _wavePlayer.Volume = volume;
+                        if (volume > 0 && !_wavePlayer.IsPlaying()) _wavePlayer.Play();
+                        else if (volume == 0) _wavePlayer.Pause();
+                        break;
+                    case "ForestSlider":
+                        _forestPlayer.Volume = volume;
+                        if (volume > 0 && !_forestPlayer.IsPlaying()) _forestPlayer.Play();
+                        else if (volume == 0) _forestPlayer.Pause();
+                        break;
+                    case "RainSlider":
+                        _rainPlayer.Volume = volume;
+                        if (volume > 0 && !_rainPlayer.IsPlaying()) _rainPlayer.Play();
+                        else if (volume == 0) _rainPlayer.Pause();
+                        break;
+                    case "BonfireSlider":
+                        _bonfirePlayer.Volume = volume;
+                        if (volume > 0 && !_bonfirePlayer.IsPlaying()) _bonfirePlayer.Play();
+                        else if (volume == 0) _bonfirePlayer.Pause();
+                        break;
+                }
+            }
+        }
         #endregion
 
-        #region 핵심 로직
+        #region Core Logic
         public void SetMiniTimerReference(MiniTimerWindow timer)
         {
             _miniTimer = timer;
@@ -420,7 +568,6 @@ namespace WorkPartner
             ActiveProcessDisplay.Text = $"활성: {activeTitle}";
             string keywordToCheck = !string.IsNullOrEmpty(activeUrl) ? activeUrl : activeProcess;
 
-            // 방해 앱 감지
             if (_settings.DistractionProcesses.Any(p => keywordToCheck.Contains(p)))
             {
                 if (_stopwatch.IsRunning || _isPausedForIdle)
@@ -448,31 +595,30 @@ namespace WorkPartner
 
                 if (isCurrentlyIdle)
                 {
-                    if (_stopwatch.IsRunning) // Just became idle
+                    if (_stopwatch.IsRunning)
                     {
                         _stopwatch.Stop();
                         _isPausedForIdle = true;
                         _idleStartTime = DateTime.Now;
                     }
-                    else if (_isPausedForIdle) // Still idle, check grace period
+                    else if (_isPausedForIdle)
                     {
                         if ((DateTime.Now - _idleStartTime).TotalSeconds > IdleGraceSeconds)
                         {
-                            // Grace period over. Log the session that happened before the idle period.
                             LogWorkSession(_sessionStartTime.Add(_stopwatch.Elapsed));
                             _stopwatch.Reset();
-                            _isPausedForIdle = false; // Reset state
+                            _isPausedForIdle = false;
                         }
                     }
                 }
-                else // Not idle, user is active
+                else
                 {
-                    if (_isPausedForIdle) // Just came back
+                    if (_isPausedForIdle)
                     {
-                        _isPausedForIdle = false; // Reset state
-                        _stopwatch.Start(); // Continue the timer
+                        _isPausedForIdle = false;
+                        _stopwatch.Start();
                     }
-                    else if (!_stopwatch.IsRunning) // Starting a new session
+                    else if (!_stopwatch.IsRunning)
                     {
                         if (_currentWorkingTask == null && TaskItems.Any())
                         {
@@ -499,11 +645,10 @@ namespace WorkPartner
                     CurrentTaskDisplay.Text = "선택된 과목 없음";
                 }
             }
-            else // Not a trackable app
+            else
             {
                 if (_stopwatch.IsRunning || _isPausedForIdle)
                 {
-                    // If we were paused for idle and switched to a non-tracked app, log the pre-idle session
                     LogWorkSession(_isPausedForIdle ? _sessionStartTime.Add(_stopwatch.Elapsed) : (DateTime?)null);
                     _stopwatch.Reset();
                 }
@@ -514,12 +659,11 @@ namespace WorkPartner
             UpdateLiveTimeDisplays();
         }
 
-
         private void LogWorkSession(DateTime? endTime = null)
         {
             if (_currentWorkingTask == null || _stopwatch.Elapsed.TotalSeconds < 1)
             {
-                _stopwatch.Reset(); // Ensure stopwatch is reset even if nothing is logged
+                _stopwatch.Reset();
                 return;
             }
             var entry = new TimeLogEntry
@@ -530,9 +674,16 @@ namespace WorkPartner
                 FocusScore = 0
             };
             TimeLogEntries.Insert(0, entry);
+
+            // Experience gain logic (New)
+            LoadSettings(); // Load the latest settings (experience)
+            _settings.Experience += (long)entry.Duration.TotalMinutes;
+            SaveSettings();
+
             SaveTimeLogs();
             RecalculateAllTotals();
             RenderTimeTable();
+            UpdateCharacterPanel(); // Call to update experience, level
             _lastUnratedSession = entry;
             SessionReviewPanel.Visibility = Visibility.Visible;
         }
@@ -581,8 +732,6 @@ namespace WorkPartner
             }
         }
 
-        private void UpdateCoinDisplay() { if (_settings != null) { CoinDisplayTextBlock.Text = _settings.Coins.ToString("N0"); } }
-
         private void UpdateLiveTimeDisplays()
         {
             TimeSpan timeToDisplay;
@@ -603,6 +752,7 @@ namespace WorkPartner
 
             if (_currentWorkingTask != null)
             {
+                CurrentTaskInfoTextBlock.Text = $"현재 작업: {_currentWorkingTask.Text}";
                 TimeSpan selectedTaskTime = _selectedTaskTotalTimeFromLogs;
                 if (_stopwatch.IsRunning)
                 {
@@ -610,8 +760,36 @@ namespace WorkPartner
                 }
                 SelectedTaskTotalTimeDisplay.Text = $"선택 과목 총계: {selectedTaskTime:hh\\:mm\\:ss}";
             }
+            else
+            {
+                CurrentTaskInfoTextBlock.Text = "현재 작업: -";
+            }
         }
-        private void UpdateTagSuggestions(TodoItem todo) { SuggestedTags.Clear(); if (todo == null) return; var suggestions = new List<string>(); if (_currentWorkingTask != null && !string.IsNullOrWhiteSpace(_currentWorkingTask.Text)) { suggestions.Add($"#{_currentWorkingTask.Text}"); } if (_settings != null && _settings.TagRules != null) { foreach (var rule in _settings.TagRules) { if (todo.Text.ToLower().Contains(rule.Key.ToLower())) { suggestions.Add(rule.Value); } } } foreach (var suggestion in suggestions.Distinct().Except(todo.Tags)) { SuggestedTags.Add(suggestion); } }
+
+        private void UpdateTagSuggestions(TodoItem todo)
+        {
+            SuggestedTags.Clear();
+            if (todo == null) return;
+            var suggestions = new List<string>();
+            if (_currentWorkingTask != null && !string.IsNullOrWhiteSpace(_currentWorkingTask.Text))
+            {
+                suggestions.Add($"#{_currentWorkingTask.Text}");
+            }
+            if (_settings != null && _settings.TagRules != null)
+            {
+                foreach (var rule in _settings.TagRules)
+                {
+                    if (todo.Text.ToLower().Contains(rule.Key.ToLower()))
+                    {
+                        suggestions.Add(rule.Value);
+                    }
+                }
+            }
+            foreach (var suggestion in suggestions.Distinct().Except(todo.Tags))
+            {
+                SuggestedTags.Add(suggestion);
+            }
+        }
 
         private void UpdateSelectedTaskTotalTimeDisplay()
         {
@@ -639,43 +817,20 @@ namespace WorkPartner
         private void RenderTimeTable()
         {
             TimeTableContainer.Children.Clear();
-
             var logsForSelectedDate = TimeLogEntries.Where(log => log.StartTime.Date == _currentDateForTimeline.Date).ToList();
 
             for (int hour = 0; hour < 24; hour++)
             {
-                var hourRowPanel = new StackPanel
-                {
-                    Orientation = Orientation.Horizontal,
-                    Margin = new Thickness(0, 1, 0, 1)
-                };
-
-                var hourLabel = new TextBlock
-                {
-                    Text = $"{hour:00}",
-                    Width = 30,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    TextAlignment = TextAlignment.Center,
-                    Foreground = Brushes.Gray
-                };
+                var hourRowPanel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 1, 0, 1) };
+                var hourLabel = new TextBlock { Text = $"{hour:00}", Width = 30, VerticalAlignment = VerticalAlignment.Center, TextAlignment = TextAlignment.Center, Foreground = Brushes.Gray };
                 hourRowPanel.Children.Add(hourLabel);
 
                 for (int minuteBlock = 0; minuteBlock < 6; minuteBlock++)
                 {
                     var blockStartTime = new TimeSpan(hour, minuteBlock * 10, 0);
                     var blockEndTime = blockStartTime.Add(TimeSpan.FromMinutes(10));
-
-                    var blockContainer = new Grid
-                    {
-                        Width = 60,
-                        Height = 20,
-                        Background = new SolidColorBrush(Color.FromRgb(0xF5, 0xF5, 0xF5)),
-                        Margin = new Thickness(1, 0, 1, 0)
-                    };
-
-                    var overlappingLogs = logsForSelectedDate.Where(log =>
-                        log.StartTime.TimeOfDay < blockEndTime && log.EndTime.TimeOfDay > blockStartTime
-                    ).ToList();
+                    var blockContainer = new Grid { Width = 60, Height = 20, Background = new SolidColorBrush(Color.FromRgb(0xF5, 0xF5, 0xF5)), Margin = new Thickness(1, 0, 1, 0) };
+                    var overlappingLogs = logsForSelectedDate.Where(log => log.StartTime.TimeOfDay < blockEndTime && log.EndTime.TimeOfDay > blockStartTime).ToList();
 
                     foreach (var logEntry in overlappingLogs)
                     {
@@ -690,32 +845,13 @@ namespace WorkPartner
 
                         if (barWidth < 1) continue;
 
-                        var coloredBar = new Border
-                        {
-                            Width = barWidth,
-                            Height = blockContainer.Height,
-                            Background = GetColorForTask(logEntry.TaskText),
-                            CornerRadius = new CornerRadius(2),
-                            HorizontalAlignment = HorizontalAlignment.Left,
-                            Margin = new Thickness(leftOffset, 0, 0, 0),
-                            ToolTip = new ToolTip { Content = $"{logEntry.TaskText}\n{logEntry.StartTime:HH:mm} ~ {logEntry.EndTime:HH:mm}\n\n클릭하여 수정 또는 삭제" },
-                            Tag = logEntry,
-                            Cursor = Cursors.Hand
-                        };
+                        var coloredBar = new Border { Width = barWidth, Height = blockContainer.Height, Background = GetColorForTask(logEntry.TaskText), CornerRadius = new CornerRadius(2), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(leftOffset, 0, 0, 0), ToolTip = new ToolTip { Content = $"{logEntry.TaskText}\n{logEntry.StartTime:HH:mm} ~ {logEntry.EndTime:HH:mm}\n\n클릭하여 수정 또는 삭제" }, Tag = logEntry, Cursor = Cursors.Hand };
                         coloredBar.MouseLeftButtonDown += TimeLogRect_MouseLeftButtonDown;
                         blockContainer.Children.Add(coloredBar);
                     }
-
-                    var blockWithBorder = new Border
-                    {
-                        BorderBrush = Brushes.White,
-                        BorderThickness = new Thickness(1, 0, (minuteBlock + 1) % 6 == 0 ? 1 : 0, 0),
-                        Child = blockContainer
-                    };
-
+                    var blockWithBorder = new Border { BorderBrush = Brushes.White, BorderThickness = new Thickness(1, 0, (minuteBlock + 1) % 6 == 0 ? 1 : 0, 0), Child = blockContainer };
                     hourRowPanel.Children.Add(blockWithBorder);
                 }
-
                 TimeTableContainer.Children.Add(hourRowPanel);
             }
         }
@@ -751,7 +887,6 @@ namespace WorkPartner
         private TodoItem FindParent(TodoItem currentParent, ObservableCollection<TodoItem> items, TodoItem target)
         {
             if (items.Contains(target)) return currentParent;
-
             foreach (var item in items)
             {
                 var found = FindParent(item, item.SubTasks, target);
@@ -759,7 +894,6 @@ namespace WorkPartner
             }
             return null;
         }
-        #endregion
 
         private void FocusModeButton_Click(object sender, RoutedEventArgs e)
         {
@@ -778,7 +912,6 @@ namespace WorkPartner
             }
         }
 
-        // 'FilterTodos' 메서드 추가
         private void FilterTodos()
         {
             FilteredTodoItems.Clear();
@@ -793,5 +926,61 @@ namespace WorkPartner
                 }
             }
         }
+
+        // New: Update character info panel
+        private void UpdateCharacterPanel()
+        {
+            if (_settings == null) return;
+            NicknameTextBlock.Text = _settings.Nickname;
+            CoinDisplayTextBlock.Text = _settings.Coins.ToString("N0");
+
+            // Calculate level and experience
+            int level = (int)Math.Floor(Math.Sqrt(_settings.Experience / 100.0)) + 1;
+            long currentLevelBaseExp = (long)Math.Pow(level - 1, 2) * 100;
+            long nextLevelBaseExp = (long)Math.Pow(level, 2) * 100;
+            long expForNextLevel = nextLevelBaseExp - currentLevelBaseExp;
+            long currentExpProgress = _settings.Experience - currentLevelBaseExp;
+
+            LevelTextBlock.Text = $"Lv. {level}";
+            ExpTextBlock.Text = $"(EXP: {currentExpProgress} / {expForNextLevel})";
+
+            DashboardCharacterDisplay.UpdateCharacter();
+        }
+
+        // New: Initialize ambient sounds
+        private void InitializeAmbientSounds()
+        {
+            _wavePlayer = CreateAmbientPlayer("wave.mp3");
+            _forestPlayer = CreateAmbientPlayer("forest.mp3");
+            _rainPlayer = CreateAmbientPlayer("rain.mp3");
+            _bonfirePlayer = CreateAmbientPlayer("bonfire.mp3");
+        }
+
+        private MediaPlayer CreateAmbientPlayer(string fileName)
+        {
+            var player = new MediaPlayer();
+            string filePath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Sounds", fileName);
+            if (File.Exists(filePath))
+            {
+                player.Open(new Uri(filePath));
+                player.MediaEnded += (s, e) => { player.Position = TimeSpan.Zero; player.Play(); }; // Loop
+                player.Volume = 0;
+            }
+            return player;
+        }
+        #endregion
+    }
+
+    // MediaPlayer extension method (New)
+    public static class MediaPlayerExtensions
+    {
+        public static bool IsPlaying(this MediaPlayer player)
+        {
+            if (player.Source == null) return false;
+            // A simple check to see if the player has started and is not at the end.
+            // This works for looping sounds.
+            return player.HasAudio;
+        }
     }
 }
+

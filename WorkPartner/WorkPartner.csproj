@@ -240,6 +240,9 @@
       <DependentUpon>AppSelectionWindow.xaml</DependentUpon>
     </Compile>
     <Compile Include="AppSettings.cs" />
+    <Compile Include="AvatarDecorationPage.xaml.cs">
+      <DependentUpon>AvatarDecorationPage.xaml</DependentUpon>
+    </Compile>
     <Compile Include="BreakActivityWindow.xaml.cs">
       <DependentUpon>BreakActivityWindow.xaml</DependentUpon>
     </Compile>
@@ -260,6 +263,9 @@
     <Compile Include="ModelInput.cs" />
     <Compile Include="ModelOutput.cs" />
     <Compile Include="PredictionService.cs" />
+    <Compile Include="ProcessRegistrationControl.xaml.cs">
+      <DependentUpon>ProcessRegistrationControl.xaml</DependentUpon>
+    </Compile>
     <Compile Include="SettingsPage.xaml.cs">
       <DependentUpon>SettingsPage.xaml</DependentUpon>
     </Compile>
@@ -287,6 +293,10 @@
       <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Include="AppSelectionWindow.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="AvatarDecorationPage.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
@@ -336,6 +346,10 @@
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
+    <Page Include="ProcessRegistrationControl.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Page Include="SettingsPage.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
@@ -380,6 +394,7 @@
   </ItemGroup>
   <ItemGroup>
     <Resource Include="app_icon.ico" />
+    <Resource Include="coin.png" />
     <Content Include="TintColor.fx" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
