@@ -1,16 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Diagnostics;
-using System.Drawing;
+﻿// 파일: MainWindow.xaml.cs (수정)
+// [수정] Owner 속성 설정을 제거하고, Closing 이벤트를 통해 미니 타이머를 직접 닫도록 변경했습니다.
+using System;
 using System.IO;
-using System.Linq;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Interop;
-using System.Windows.Media.Imaging;
-using Microsoft.Win32;
-
+using System.Windows.Media;
+using System.ComponentModel;
 
 namespace WorkPartner
 {
@@ -19,20 +15,21 @@ namespace WorkPartner
         private DashboardPage _dashboardPage;
         private SettingsPage _settingsPage;
         private AnalysisPage _analysisPage;
-        private AvatarDecorationPage _avatarDecorationPage;
+        private ShopPage _shopPage;
+        private ClosetPage _closetPage;
         private MiniTimerWindow _miniTimerWindow;
-        private List<InstalledProgram> _allPrograms;
-
 
         public MainWindow()
         {
             InitializeComponent();
+
             DataManager.PrepareFileForEditing("FocusPredictionModel.zip");
 
             _dashboardPage = new DashboardPage();
             _settingsPage = new SettingsPage();
             _analysisPage = new AnalysisPage();
-            _avatarDecorationPage = new AvatarDecorationPage();
+            _shopPage = new ShopPage();
+            _closetPage = new ClosetPage();
 
             PageContent.Content = _dashboardPage;
             UpdateNavButtonSelection(DashboardButton);
@@ -41,34 +38,33 @@ namespace WorkPartner
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
             ToggleMiniTimer();
-            // Load programs in the background
-            BackgroundWorker worker = new BackgroundWorker();
-            worker.DoWork += (s, args) => { _allPrograms = GetAllProgramsInternal(); };
-            worker.RunWorkerCompleted += (s, args) => { };
-            worker.RunWorkerAsync();
         }
 
         private void MainWindow_Closing(object sender, CancelEventArgs e)
         {
+            // 메인 창이 닫힐 때 미니 타이머 창도 함께 닫습니다.
             _miniTimerWindow?.Close();
         }
 
         private void UpdateNavButtonSelection(Button selectedButton)
         {
-            DashboardButton.Tag = "Inactive";
-            AnalysisButton.Tag = "Inactive";
-            AvatarButton.Tag = "Inactive";
-            SettingsButton.Tag = "Inactive";
-
+            foreach (var child in NavigationPanel.Children)
+            {
+                if (child is Button button)
+                {
+                    button.Background = Brushes.Transparent;
+                }
+            }
             if (selectedButton != null)
             {
-                selectedButton.Tag = "Active";
+                selectedButton.Background = new SolidColorBrush(Color.FromRgb(0xE0, 0xE0, 0xE0));
             }
         }
 
         private void DashboardButton_Click(object sender, RoutedEventArgs e)
         {
             _dashboardPage.LoadAllData();
+            _dashboardPage.SetMiniTimerReference(_miniTimerWindow);
             PageContent.Content = _dashboardPage;
             UpdateNavButtonSelection(sender as Button);
         }
@@ -86,26 +82,29 @@ namespace WorkPartner
             UpdateNavButtonSelection(sender as Button);
         }
 
-        private void AvatarButton_Click(object sender, RoutedEventArgs e)
+        private void ShopButton_Click(object sender, RoutedEventArgs e)
         {
-            _avatarDecorationPage.LoadData();
-            PageContent.Content = _avatarDecorationPage;
+            _shopPage.LoadSettings();
+            PageContent.Content = _shopPage;
             UpdateNavButtonSelection(sender as Button);
         }
 
-        public void NavigateToAvatarPage()
+        private void ClosetButton_Click(object sender, RoutedEventArgs e)
         {
-            AvatarButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            _closetPage.LoadData();
+            PageContent.Content = _closetPage;
+            UpdateNavButtonSelection(sender as Button);
         }
 
         public void ToggleMiniTimer()
         {
-            var settings = DataManager.LoadSettings();
+            var settings = LoadSettings();
             if (settings.IsMiniTimerEnabled)
             {
                 if (_miniTimerWindow == null || !_miniTimerWindow.IsVisible)
                 {
                     _miniTimerWindow = new MiniTimerWindow();
+                    // [수정] 오류의 원인이 되는 Owner 속성 설정 제거
                     _miniTimerWindow.Show();
                     _dashboardPage?.SetMiniTimerReference(_miniTimerWindow);
                 }
@@ -118,102 +117,15 @@ namespace WorkPartner
             }
         }
 
-        #region Program List Logic (Moved to MainWindow)
-        public List<InstalledProgram> GetAllPrograms() => _allPrograms;
-
-        public List<InstalledProgram> GetRunningApps()
+        private AppSettings LoadSettings()
         {
-            var allRunningApps = new List<InstalledProgram>();
-            var addedProcesses = new HashSet<string>();
-
-            var runningProcesses = Process.GetProcesses().Where(p => !string.IsNullOrEmpty(p.MainWindowTitle) && p.MainWindowHandle != IntPtr.Zero);
-            foreach (var process in runningProcesses)
+            string settingsFilePath = "app_settings.json";
+            if (File.Exists(settingsFilePath))
             {
-                try
-                {
-                    string processName = process.ProcessName.ToLower();
-                    if (addedProcesses.Contains(processName) || new[] { "chrome", "msedge", "whale", "applicationframehost" }.Contains(processName)) continue;
-
-                    string filePath = process.MainModule.FileName;
-                    allRunningApps.Add(new InstalledProgram
-                    {
-                        DisplayName = process.MainWindowTitle,
-                        ProcessName = processName,
-                        Icon = GetIcon(filePath),
-                        IconPath = filePath
-                    });
-                    addedProcesses.Add(processName);
-                }
-                catch { }
+                var json = File.ReadAllText(settingsFilePath);
+                return JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
             }
-            return allRunningApps.OrderBy(p => p.DisplayName).ToList();
+            return new AppSettings();
         }
-
-        private List<InstalledProgram> GetAllProgramsInternal()
-        {
-            var programs = new Dictionary<string, InstalledProgram>();
-            string registryPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall";
-            var registryViews = new[] { RegistryView.Registry32, RegistryView.Registry64 };
-
-            foreach (var view in registryViews)
-            {
-                try
-                {
-                    using (var baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, view))
-                    using (var key = baseKey.OpenSubKey(registryPath))
-                    {
-                        if (key == null) continue;
-                        foreach (string subkeyName in key.GetSubKeyNames())
-                        {
-                            using (RegistryKey subkey = key.OpenSubKey(subkeyName))
-                            {
-                                if (subkey == null) continue;
-                                var displayName = subkey.GetValue("DisplayName") as string;
-                                var iconPath = subkey.GetValue("DisplayIcon") as string;
-                                var systemComponent = subkey.GetValue("SystemComponent") as int?;
-
-                                if (!string.IsNullOrWhiteSpace(displayName) && systemComponent != 1)
-                                {
-                                    string executablePath = iconPath?.Split(',')[0].Replace("\"", "");
-                                    if (string.IsNullOrEmpty(executablePath) || !File.Exists(executablePath)) continue;
-
-                                    string processName = Path.GetFileNameWithoutExtension(executablePath).ToLower();
-                                    if (!programs.ContainsKey(processName))
-                                    {
-                                        programs[processName] = new InstalledProgram { DisplayName = displayName, ProcessName = processName, IconPath = executablePath };
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                catch { }
-            }
-
-            Application.Current.Dispatcher.Invoke(() =>
-            {
-                foreach (var program in programs.Values)
-                {
-                    program.Icon = GetIcon(program.IconPath);
-                }
-            });
-
-            return programs.Values.OrderBy(p => p.DisplayName).ToList();
-        }
-
-        private BitmapSource GetIcon(string filePath)
-        {
-            if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return null;
-            try
-            {
-                using (System.Drawing.Icon icon = System.Drawing.Icon.ExtractAssociatedIcon(filePath))
-                {
-                    return Imaging.CreateBitmapSourceFromHIcon(icon.Handle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
-                }
-            }
-            catch { return null; }
-        }
-        #endregion
     }
 }
-

@@ -1,38 +1,46 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text.Json.Serialization;
-using WorkPartner;
+using System.Collections.ObjectModel;
 
-public class AppSettings
+namespace WorkPartner
 {
-    // 사용자 프로필 정보
-    public string Nickname { get; set; } = "WorkPartner";
-    public long Experience { get; set; } = 0;
-    public int Coins { get; set; } = 1000;
+    public class AppSettings
+    {
+        public bool IsIdleDetectionEnabled { get; set; }
+        public int IdleTimeoutSeconds { get; set; }
+        public ObservableCollection<string> WorkProcesses { get; set; }
+        public ObservableCollection<string> PassiveProcesses { get; set; }
+        public ObservableCollection<string> DistractionProcesses { get; set; }
+        public string FocusModeNagMessage { get; set; }
+        public int FocusModeNagIntervalSeconds { get; set; }
+        public Dictionary<string, string> TagRules { get; set; }
+        public int Coins { get; set; }
+        public List<Guid> OwnedItemIds { get; set; }
+        public Dictionary<ItemType, Guid> EquippedItems { get; set; }
+        public Dictionary<ItemType, string> CustomColors { get; set; }
+        public Dictionary<string, string> TaskColors { get; set; } = new Dictionary<string, string>();
 
-    // 타이머 및 추적 설정
-    public bool IsIdleDetectionEnabled { get; set; } = true;
-    public int IdleTimeoutSeconds { get; set; } = 300;
-    public bool IsMiniTimerEnabled { get; set; } = false;
 
-    // 집중 모드 설정
-    public string FocusModeNagMessage { get; set; } = "딴짓 그만! 다시 집중해주세요!";
-    public int FocusModeNagIntervalSeconds { get; set; } = 60;
+        /// <summary>
+        /// [속성 추가] 미니 타이머(항상 위) 기능 활성화 여부
+        /// </summary>
+        public bool IsMiniTimerEnabled { get; set; }
 
-    // 추적할 프로세스 및 URL 목록
-    public List<string> WorkProcesses { get; set; } = new List<string> { "visual studio", "devenv", "code", "word", "excel", "powerpnt", "hwp" };
-    public List<string> PassiveProcesses { get; set; } = new List<string> { "vlc", "potplayer", "youtubemusic" };
-    public List<string> DistractionProcesses { get; set; } = new List<string> { "league of legends", "steam", "netflix", "disneyplus" };
-
-    // AI 태그 추천 규칙
-    public Dictionary<string, string> TagRules { get; set; } = new Dictionary<string, string>();
-
-    // 아바타 꾸미기 관련
-    public List<Guid> OwnedItemIds { get; set; } = new List<Guid>();
-    public Dictionary<ItemType, Guid> EquippedItems { get; set; } = new Dictionary<ItemType, Guid>();
-    public Dictionary<ItemType, string> CustomColors { get; set; } = new Dictionary<ItemType, string>();
-
-    // 과목별 색상
-    public Dictionary<string, string> TaskColors { get; set; } = new Dictionary<string, string>();
+        public AppSettings()
+        {
+            IsIdleDetectionEnabled = true;
+            IdleTimeoutSeconds = 60;
+            WorkProcesses = new ObservableCollection<string>();
+            PassiveProcesses = new ObservableCollection<string>();
+            DistractionProcesses = new ObservableCollection<string>();
+            FocusModeNagMessage = "할 일을 합시다!";
+            FocusModeNagIntervalSeconds = 30;
+            TagRules = new Dictionary<string, string>();
+            Coins = 0;
+            OwnedItemIds = new List<Guid>();
+            EquippedItems = new Dictionary<ItemType, Guid>();
+            CustomColors = new Dictionary<ItemType, string>();
+            IsMiniTimerEnabled = false; // 기본값은 비활성화
+        }
+    }
 }
-

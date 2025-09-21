@@ -1,37 +1,51 @@
 ﻿using System;
-using System.Text.Json.Serialization;
 
 namespace WorkPartner
 {
-    // 아이템 카테고리 Enum (수정됨)
     public enum ItemType
     {
-        Face,
-        Hair,
-        Top,
-        Bottom,
-        Shoes,
-        Decoration,
-        Background,
-        // 아래는 색상 지정용 타입 (실제 아이템은 아님)
+        // 얼굴 및 머리
         HairColor,
+        HairStyle,
+        EyeShape,
         EyeColor,
-        ClothesColor,
-    }
+        MouthShape,
+        FaceDeco1,
+        FaceDeco2,
+        FaceDeco3,
+        FaceDeco4,
 
+        // 의류 및 장신구
+        Clothes,
+        ClothesColor,
+        AnimalEar,
+        AnimalTail,
+        Accessory1,
+        Accessory2,
+        Accessory3,
+
+        // 배경
+        Cushion,
+        CushionColor,
+        Background
+    }
 
     public class ShopItem
     {
         public Guid Id { get; set; }
         public string Name { get; set; }
         public int Price { get; set; }
-        public string ImagePath { get; set; }
         public ItemType Type { get; set; }
 
-        [JsonIgnore]
-        public bool IsOwned { get; set; }
-        [JsonIgnore]
-        public bool IsEquipped { get; set; }
+        // 이미지 파일의 경로를 저장합니다.
+        public string ImagePath { get; set; }
+
+        // [추가] 색상 아이템의 실제 색상 값(Hex 코드)을 저장합니다.
+        public string ColorValue { get; set; }
+
+        public ShopItem()
+        {
+            Id = Guid.NewGuid();
+        }
     }
 }
-

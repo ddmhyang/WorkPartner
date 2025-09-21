@@ -5,49 +5,50 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:WorkPartner"
         mc:Ignorable="d"
-        Title="WorkPartner" Height="650" Width="950" MinHeight="600" MinWidth="900"
-        Loaded="MainWindow_Loaded" Closing="MainWindow_Closing"
-        WindowStartupLocation="CenterScreen"
-        Icon="app_icon.ico">
+        Title="작업 파트너" Height="526" Width="682"
+        Loaded="MainWindow_Loaded"
+        Closing="MainWindow_Closing">
     <Window.Resources>
-        <Style x:Key="NavButtonStyle" TargetType="Button">
+        <Style x:Key="NavButton" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="#333"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="15,10"/>
-            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Foreground" Value="#444"/>
             <Setter Property="FontSize" Value="14"/>
-            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Padding" Value="15,10"/>
+            <Setter Property="Margin" Value="2,0"/>
+            <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="5" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter/>
+                        <Border x:Name="border" Background="{TemplateBinding Background}" CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#EAEAEA"/>
+                </Trigger>
+            </Style.Triggers>
         </Style>
     </Window.Resources>
     <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="180"/>
-            <ColumnDefinition Width="*"/>
-        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
 
-        <!-- Navigation Panel -->
-        <Border Grid.Column="0" Background="#F5F5F5" Padding="10">
-            <StackPanel x:Name="NavigationPanel">
-                <TextBlock Text="WorkPartner" FontSize="20" FontWeight="Bold" Margin="10,5,10,20"/>
-                <Button x:Name="DashboardButton" Content="대시보드" Click="DashboardButton_Click" Style="{StaticResource NavButtonStyle}"/>
-                <Button x:Name="AnalysisButton" Content="분석" Click="AnalysisButton_Click" Style="{StaticResource NavButtonStyle}"/>
-                <Button x:Name="AvatarButton" Content="아바타 꾸미기" Click="AvatarButton_Click" Style="{StaticResource NavButtonStyle}"/>
-                <Button x:Name="SettingsButton" Content="설정" Click="SettingsButton_Click" Style="{StaticResource NavButtonStyle}"/>
+        <Border Grid.Row="0" Background="#FDFDFD" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1" Padding="5">
+            <StackPanel x:Name="NavigationPanel" Orientation="Horizontal">
+                <Button x:Name="DashboardButton" Content="대시보드" Click="DashboardButton_Click" Style="{StaticResource NavButton}"/>
+                <Button Content="상점" Click="ShopButton_Click" Style="{StaticResource NavButton}"/>
+                <Button Content="옷장" Click="ClosetButton_Click" Style="{StaticResource NavButton}"/>
+                <Button Content="분석" Click="AnalysisButton_Click" Style="{StaticResource NavButton}"/>
+                <Button Content="설정" Click="SettingsButton_Click" Style="{StaticResource NavButton}"/>
             </StackPanel>
         </Border>
 
-        <!-- Page Content -->
-        <ContentControl x:Name="PageContent" Grid.Column="1"/>
+        <ContentControl Grid.Row="1" x:Name="PageContent" Background="{StaticResource AppBackgroundBrush}"/>
     </Grid>
 </Window>
-

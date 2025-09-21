@@ -74,7 +74,7 @@
     </Win32Resource>
   </PropertyGroup>
   <PropertyGroup>
-    <ApplicationIcon>app_icon.ico</ApplicationIcon>
+    <ApplicationIcon>WorkPartner.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="CefSharp, Version=138.0.170.0, Culture=neutral, PublicKeyToken=40c4b6fc221f4138, processorArchitecture=MSIL">
@@ -240,11 +240,11 @@
       <DependentUpon>AppSelectionWindow.xaml</DependentUpon>
     </Compile>
     <Compile Include="AppSettings.cs" />
-    <Compile Include="AvatarDecorationPage.xaml.cs">
-      <DependentUpon>AvatarDecorationPage.xaml</DependentUpon>
-    </Compile>
     <Compile Include="BreakActivityWindow.xaml.cs">
       <DependentUpon>BreakActivityWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="BulkEditLogsWindow.xaml.cs">
+      <DependentUpon>BulkEditLogsWindow.xaml</DependentUpon>
     </Compile>
     <Compile Include="CharacterDisplay.xaml.cs">
       <DependentUpon>CharacterDisplay.xaml</DependentUpon>
@@ -252,7 +252,13 @@
     <Compile Include="ClosetPage.xaml.cs">
       <DependentUpon>ClosetPage.xaml</DependentUpon>
     </Compile>
+    <Compile Include="ColorPickerWindow.xaml.cs">
+      <DependentUpon>ColorPickerWindow.xaml</DependentUpon>
+    </Compile>
     <Compile Include="DataManager.cs" />
+    <Compile Include="DateEditWindow.xaml.cs">
+      <DependentUpon>DateEditWindow.xaml</DependentUpon>
+    </Compile>
     <Compile Include="InputWindow.xaml.cs">
       <DependentUpon>InputWindow.xaml</DependentUpon>
     </Compile>
@@ -263,9 +269,6 @@
     <Compile Include="ModelInput.cs" />
     <Compile Include="ModelOutput.cs" />
     <Compile Include="PredictionService.cs" />
-    <Compile Include="ProcessRegistrationControl.xaml.cs">
-      <DependentUpon>ProcessRegistrationControl.xaml</DependentUpon>
-    </Compile>
     <Compile Include="SettingsPage.xaml.cs">
       <DependentUpon>SettingsPage.xaml</DependentUpon>
     </Compile>
@@ -275,6 +278,9 @@
     </Compile>
     <Compile Include="SoundPlayer.cs" />
     <Compile Include="TaskItem.cs" />
+    <Compile Include="TaskSelectionWindow.xaml.cs">
+      <DependentUpon>TaskSelectionWindow.xaml</DependentUpon>
+    </Compile>
     <Compile Include="TimeLogEntry.cs" />
     <Compile Include="TimerMode.cs" />
     <Compile Include="MemoItem.cs" />
@@ -296,11 +302,11 @@
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
-    <Page Include="AvatarDecorationPage.xaml">
+    <Page Include="BreakActivityWindow.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
-    <Page Include="BreakActivityWindow.xaml">
+    <Page Include="BulkEditLogsWindow.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
@@ -312,7 +318,15 @@
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
+    <Page Include="ColorPickerWindow.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Page Include="DashboardPage.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="DateEditWindow.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
@@ -346,15 +360,15 @@
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
-    <Page Include="ProcessRegistrationControl.xaml">
-      <SubType>Designer</SubType>
-      <Generator>MSBuild:Compile</Generator>
-    </Page>
     <Page Include="SettingsPage.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Include="ShopPage.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="TaskSelectionWindow.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
@@ -393,8 +407,8 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
+    <Resource Include="WorkPartner.ico" />
     <Resource Include="app_icon.ico" />
-    <Resource Include="coin.png" />
     <Content Include="TintColor.fx" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

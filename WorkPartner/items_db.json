@@ -1,94 +1,135 @@
 [
   {
-    "Id": "f7d3d4e7-4f24-4f9e-a8c6-79e1e2d3b4c1",
-    "Name": "기본 얼굴",
+    "Id": "00000000-0000-0000-0000-000000000001",
+    "Name": "기본 머리",
     "Price": 0,
-    "ImagePath": "Images/face_01.png",
-    "Type": "Face"
+    "Type": "HairStyle",
+    "ImagePath": "Images/hair_style_01.png"
   },
   {
-    "Id": "a1b2c3d4-e5f6-a7b8-c9d0-e1f2a3b4c5d6",
-    "Name": "반짝이는 눈",
-    "Price": 200,
-    "ImagePath": "Images/face_02.png",
-    "Type": "Face"
+    "Id": "00000000-0000-0000-0000-000000000002",
+    "Name": "긴 머리",
+    "Price": 100,
+    "Type": "HairStyle",
+    "ImagePath": "Images/hair_style_02.png"
   },
   {
-    "Id": "b2c3d4e5-f6a7-b8c9-d0e1-f2a3b4c5d6e7",
-    "Name": "기본 헤어",
+    "Id": "00000000-0000-0000-0000-000000000003",
+    "Name": "검은색",
+    "Price": 10,
+    "Type": "HairColor",
+    "ColorValue": "#2E2E2E"
+  },
+  {
+    "Id": "00000000-0000-0000-0000-000000000004",
+    "Name": "갈색",
+    "Price": 10,
+    "Type": "HairColor",
+    "ColorValue": "#8A4B08"
+  },
+  {
+    "Id": "00000000-0000-0000-0000-000000000005",
+    "Name": "기본 옷",
     "Price": 0,
-    "ImagePath": "Images/hair_01.png",
-    "Type": "Hair"
+    "Type": "Clothes",
+    "ImagePath": "Gray"
   },
   {
-    "Id": "c3d4e5f6-a7b8-c9d0-e1f2-a3b4c5d6e7f8",
-    "Name": "긴 생머리",
-    "Price": 300,
-    "ImagePath": "Images/hair_02.png",
-    "Type": "Hair"
+    "Id": "00000000-0000-0000-0000-000000000006",
+    "Name": "후드티",
+    "Price": 150,
+    "Type": "Clothes",
+    "ImagePath": "DarkGray"
   },
   {
-    "Id": "d4e5f6a7-b8c9-d0e1-f2a3-b4c5d6e7f8a9",
-    "Name": "기본 상의",
+    "Id": "00000000-0000-0000-0000-000000000007",
+    "Name": "기본 눈",
     "Price": 0,
-    "ImagePath": "Images/top_01.png",
-    "Type": "Top"
+    "Type": "EyeShape",
+    "ImagePath": "SlateGray"
   },
   {
-    "Id": "e5f6a7b8-c9d0-e1f2-a3b4-c5d6e7f8a9b0",
-    "Name": "파란 후드티",
-    "Price": 500,
-    "ImagePath": "Images/top_02.png",
-    "Type": "Top"
+    "Id": "00000000-0000-0000-0000-000000000008",
+    "Name": "웃는 눈",
+    "Price": 50,
+    "Type": "EyeShape",
+    "ImagePath": "LightSlateGray"
   },
   {
-    "Id": "f6a7b8c9-d0e1-f2a3-b4c5-d6e7f8a9b0c1",
-    "Name": "기본 하의",
+    "Id": "00000000-0000-0000-0000-000000000009",
+    "Name": "파란색 눈",
+    "Price": 20,
+    "Type": "EyeColor",
+    "ColorValue": "#0080FF"
+  },
+  {
+    "Id": "00000000-0000-0000-0000-000000000010",
+    "Name": "녹색 눈",
+    "Price": 20,
+    "Type": "EyeColor",
+    "ColorValue": "#088A08"
+  },
+  {
+    "Id": "00000000-0000-0000-0000-000000000011",
+    "Name": "기본 입",
     "Price": 0,
-    "ImagePath": "Images/bottom_01.png",
-    "Type": "Bottom"
+    "Type": "MouthShape",
+    "ImagePath": "IndianRed"
   },
   {
-    "Id": "a7b8c9d0-e1f2-a3b4-c5d6-e7f8a9b0c1d2",
-    "Name": "청바지",
-    "Price": 400,
-    "ImagePath": "Images/bottom_02.png",
-    "Type": "Bottom"
+    "Id": "00000000-0000-0000-0000-000000000012",
+    "Name": "미소",
+    "Price": 30,
+    "Type": "MouthShape",
+    "ImagePath": "HotPink"
   },
   {
-    "Id": "b8c9d0e1-f2a3-b4c5-d6e7-f8a9b0c1d2e3",
-    "Name": "기본 신발",
-    "Price": 0,
-    "ImagePath": "Images/shoes_01.png",
-    "Type": "Shoes"
+    "Id": "00000000-0000-0000-0000-000000000013",
+    "Name": "고양이 귀",
+    "Price": 80,
+    "Type": "AnimalEar",
+    "ImagePath": "DimGray"
   },
   {
-    "Id": "c9d0e1f2-a3b4-c5d6-e7f8-a9b0c1d2e3f4",
-    "Name": "빨간 운동화",
-    "Price": 350,
-    "ImagePath": "Images/shoes_02.png",
-    "Type": "Shoes"
+    "Id": "00000000-0000-0000-0000-000000000014",
+    "Name": "고양이 꼬리",
+    "Price": 80,
+    "Type": "AnimalTail",
+    "ImagePath": "DimGray"
   },
   {
-    "Id": "d0e1f2a3-b4c5-d6e7-f8a9-b0c1d2e3f4a5",
+    "Id": "00000000-0000-0000-0000-000000000015",
     "Name": "안경",
-    "Price": 250,
-    "ImagePath": "Images/deco_01.png",
-    "Type": "Decoration"
+    "Price": 120,
+    "Type": "Accessory1",
+    "ImagePath": "Black"
   },
   {
-    "Id": "e1f2a3b4-c5d6-e7f8-a9b0-c1d2e3f4a5b6",
-    "Name": "기본 배경",
+    "Id": "00000000-0000-0000-0000-000000000016",
+    "Name": "홍조",
+    "Price": 40,
+    "Type": "FaceDeco1",
+    "ImagePath": "Pink"
+  },
+  {
+    "Id": "00000000-0000-0000-0000-000000000017",
+    "Name": "기본 방석",
     "Price": 0,
-    "ImagePath": "Images/bg_01.png",
-    "Type": "Background"
+    "Type": "Cushion",
+    "ImagePath": "Tan"
   },
   {
-    "Id": "f2a3b4c5-d6e7-f8a9-b0c1-d2e3f4a5b6c7",
-    "Name": "숲속 배경",
-    "Price": 1000,
-    "ImagePath": "Images/bg_02.png",
-    "Type": "Background"
+    "Id": "00000000-0000-0000-0000-000000000018",
+    "Name": "구름 방석",
+    "Price": 200,
+    "Type": "Cushion",
+    "ImagePath": "AliceBlue"
+  },
+  {
+    "Id": "00000000-0000-0000-0000-000000000019",
+    "Name": "노란색",
+    "Price": 15,
+    "Type": "CushionColor",
+    "ColorValue": "#FFD700"
   }
 ]
-
