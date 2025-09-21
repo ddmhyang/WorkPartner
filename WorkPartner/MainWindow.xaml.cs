@@ -4,10 +4,11 @@ namespace WorkPartner
 {
     public partial class MainWindow : Window
     {
+        private MiniTimerWindow miniTimer;
+
         public MainWindow()
         {
             InitializeComponent();
-            // 앱 시작 시 대시보드 페이지 로드
             MainFrame.Navigate(new DashboardPage());
         }
 
@@ -30,5 +31,28 @@ namespace WorkPartner
         {
             MainFrame.Navigate(new SettingsPage());
         }
+
+        // 미니 타이머 토글 메서드 추가
+        public void ToggleMiniTimer(bool show)
+        {
+            if (show)
+            {
+                if (miniTimer == null || !miniTimer.IsVisible)
+                {
+                    miniTimer = new MiniTimerWindow();
+                    miniTimer.Owner = this;
+                    miniTimer.Show();
+                }
+            }
+            else
+            {
+                if (miniTimer != null && miniTimer.IsVisible)
+                {
+                    miniTimer.Close();
+                    miniTimer = null;
+                }
+            }
+        }
     }
 }
+

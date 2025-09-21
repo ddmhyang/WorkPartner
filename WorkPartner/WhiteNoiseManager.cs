@@ -1,69 +1,86 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
-using System.Windows.Media;
+using System.IO;
 
 namespace WorkPartner
 {
-    // 백색 소음 재생을 관리하는 클래스
-    public class WhiteNoiseManager
+    public class DataManager
     {
-        private Dictionary<string, MediaPlayer> players = new Dictionary<string, MediaPlayer>();
+        private static readonly string dataPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data");
+        private static readonly string todosFilePath = Path.Combine(dataPath, "todos.json");
+        private static readonly string logsFilePath = Path.Combine(dataPath, "logs.json");
+        private static readonly string memoFilePath = Path.Combine(dataPath, "memo.txt");
+        private static readonly string characterDataFilePath = Path.Combine(dataPath, "character.json");
+        private static readonly string shopItemsFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "items_db.json");
+        private static readonly string soundSettingsFilePath = Path.Combine(dataPath, "sound_settings.json");
+        private static readonly string appSettingsFilePath = Path.Combine(dataPath, "settings.json"); // 설정 파일 경로 추가
 
-        public WhiteNoiseManager()
+        private static DataManager _instance;
+        public static DataManager Instance => _instance ?? (_instance = new DataManager());
+
+        private List<TodoItem> _todos;
+        private Dictionary<DateTime, List<TimeLogEntry>> _logs;
+        private CharacterData _characterData;
+        private List<ShopItem> _shopItems;
+        private Dictionary<string, double> _soundSettings;
+        private AppSettings _appSettings; // 설정 객체 추가
+
+        public event Action SettingsChanged; // 설정 변경 알림 이벤트
+
+        private DataManager()
         {
-            // 재생할 소음 종류를 초기화합니다.
-            // 중요: 프로젝트에 Sounds 폴더를 만들고 wave.mp3, forest.mp3, rain.mp3, campfire.mp3 파일을 추가해야 합니다.
-            // 추가된 사운드 파일의 속성에서 '빌드 작업'을 '콘텐츠'로, '출력 디렉터리로 복사'를 '항상 복사' 또는 '새 버전이면 복사'로 설정해주세요.
-            InitializePlayer("Wave", "Sounds/wave.mp3");
-            InitializePlayer("Forest", "Sounds/forest.mp3");
-            InitializePlayer("Rain", "Sounds/rain.mp3");
-            InitializePlayer("Campfire", "Sounds/campfire.mp3");
+            Directory.CreateDirectory(dataPath);
+            LoadTodos();
+            LoadLogs();
+            LoadCharacterData();
+            LoadShopItems();
+            LoadSoundSettings();
+            LoadSettings(); // 설정 로드
         }
 
-        private void InitializePlayer(string name, string filePath)
-        {
-            try
-            {
-                MediaPlayer player = new MediaPlayer();
-                player.Open(new Uri(filePath, UriKind.RelativeOrAbsolute));
-                player.MediaEnded += (sender, e) =>
-                {
-                    player.Position = TimeSpan.Zero;
-                    player.Play();
-                };
-                players[name] = player;
-            }
-            catch (Exception ex)
-            {
-                // 사운드 파일 로드 실패 시 오류를 출력합니다.
-                Console.WriteLine($"Error loading sound {filePath}: {ex.Message}");
-            }
-        }
+        // To-Do
+        public List<TodoItem> GetTodos() => _todos;
+        public void AddTodo(TodoItem todo) { _todos.Add(todo); SaveTodos(); }
+        public void RemoveTodo(TodoItem todo) { _todos.Remove(todo); SaveTodos(); }
+        public void SaveTodos() => File.WriteAllText(todosFilePath, JsonConvert.SerializeObject(_todos, Formatting.Indented));
+        private void LoadTodos() => _todos = File.Exists(todosFilePath) ? JsonConvert.DeserializeObject<List<TodoItem>>(File.ReadAllText(todosFilePath)) : new List<TodoItem>();
 
-        // 특정 소리의 볼륨을 조절합니다.
-        public void SetVolume(string soundName, double volume)
-        {
-            if (players.ContainsKey(soundName))
-            {
-                players[soundName].Volume = volume;
-                if (volume > 0 && players[soundName].Source != null && (players[soundName].Position == TimeSpan.Zero || players[soundName].Position == players[soundName].NaturalDuration))
-                {
-                    players[soundName].Play();
-                }
-                else if (volume == 0)
-                {
-                    players[soundName].Pause(); // 볼륨이 0이면 일시정지
-                }
-            }
-        }
+        // Logs
+        public List<TimeLogEntry> GetLogs(DateTime date) => _logs.ContainsKey(date.Date) ? _logs[date.Date] : new List<TimeLogEntry>();
+        private void LoadLogs() => _logs = File.Exists(logsFilePath) ? JsonConvert.DeserializeObject<Dictionary<DateTime, List<TimeLogEntry>>>(File.ReadAllText(logsFilePath)) : new Dictionary<DateTime, List<TimeLogEntry>>();
 
-        // 모든 소리를 정지합니다.
-        public void StopAll()
+        // Memo
+        public string GetMemo() => File.Exists(memoFilePath) ? File.ReadAllText(memoFilePath) : "";
+        public void SaveMemo(string content) => File.WriteAllText(memoFilePath, content);
+
+        // Character Data
+        public CharacterData GetCharacterData() => _characterData;
+        public void SaveCharacterData(CharacterData data) { _characterData = data; File.WriteAllText(characterDataFilePath, JsonConvert.SerializeObject(_characterData, Formatting.Indented)); }
+        private void LoadCharacterData() => _characterData = File.Exists(characterDataFilePath) ? JsonConvert.DeserializeObject<CharacterData>(File.ReadAllText(characterDataFilePath)) : new CharacterData();
+
+        // Shop Items
+        public List<ShopItem> GetAllShopItems() => _shopItems;
+        private void LoadShopItems() => _shopItems = File.Exists(shopItemsFilePath) ? JsonConvert.DeserializeObject<List<ShopItem>>(File.ReadAllText(shopItemsFilePath)) : new List<ShopItem>();
+
+        // Sound Settings
+        public Dictionary<string, double> GetSoundSettings() => _soundSettings;
+        public void SaveSoundSetting(string soundName, double volume) { _soundSettings[soundName] = volume; File.WriteAllText(soundSettingsFilePath, JsonConvert.SerializeObject(_soundSettings, Formatting.Indented)); }
+        private void LoadSoundSettings() => _soundSettings = File.Exists(soundSettingsFilePath) ? JsonConvert.DeserializeObject<Dictionary<string, double>>(File.ReadAllText(soundSettingsFilePath)) : new Dictionary<string, double>();
+
+        // App Settings
+        public AppSettings GetSettings() => _appSettings;
+        public void SaveSettingsAndNotify(AppSettings settings)
         {
-            foreach (var player in players.Values)
-            {
-                player.Stop();
-            }
+            _appSettings = settings;
+            File.WriteAllText(appSettingsFilePath, JsonConvert.SerializeObject(_appSettings, Formatting.Indented));
+            SettingsChanged?.Invoke(); // 변경 사항 알림
         }
+        private void LoadSettings() => _appSettings = File.Exists(appSettingsFilePath) ? JsonConvert.DeserializeObject<AppSettings>(File.ReadAllText(appSettingsFilePath)) : new AppSettings();
+
+        // 파일 경로 접근 (레거시 코드 호환용)
+        public string GetLogsFilePath() => logsFilePath;
+        public string GetModelFilePath() => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "model.zip");
     }
 }
+

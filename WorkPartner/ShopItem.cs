@@ -4,6 +4,7 @@ namespace WorkPartner
 {
     public class ShopItem : INotifyPropertyChanged
     {
+        public int Id { get; set; } // ID 속성 추가
         public string Name { get; set; }
         public string Type { get; set; }
         public int Price { get; set; }
@@ -38,3 +39,4 @@ namespace WorkPartner
         }
     }
 }
+

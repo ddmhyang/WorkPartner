@@ -33,6 +33,7 @@
                         <DataTemplate>
                             <StackPanel Orientation="Horizontal" Margin="2">
                                 <CheckBox IsChecked="{Binding IsCompleted}" VerticalAlignment="Center" Margin="0,0,10,0" Checked="TodoCheckBox_Changed" Unchecked="TodoCheckBox_Changed"/>
+                                <!-- Binding Path=Task 로 수정 -->
                                 <TextBlock Text="{Binding Task}" VerticalAlignment="Center"/>
                             </StackPanel>
                         </DataTemplate>
@@ -70,7 +71,14 @@
                 <ListView Name="LogListView" Grid.Row="1" Margin="10,0,10,10" BorderThickness="0">
                     <ListView.ItemTemplate>
                         <DataTemplate>
-                            <TextBlock Text="{Binding}" />
+                            <!-- 로그 표시 방식 수정 -->
+                            <TextBlock>
+                                <Run Text="{Binding StartTime, StringFormat='HH:mm'}"/>
+                                <Run Text=" - "/>
+                                <Run Text="{Binding EndTime, StringFormat='HH:mm'}"/>
+                                <Run Text=" : "/>
+                                <Run Text="{Binding AppName}"/>
+                            </TextBlock>
                         </DataTemplate>
                     </ListView.ItemTemplate>
                 </ListView>

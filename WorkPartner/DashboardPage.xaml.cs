@@ -104,11 +104,11 @@ namespace WorkPartner
         {
             if (!string.IsNullOrWhiteSpace(TodoInput.Text))
             {
+                // TodoItem의 속성 이름을 Task로 수정
                 dataManager.AddTodo(new TodoItem { Task = TodoInput.Text, IsCompleted = false });
                 TodoInput.Clear();
                 TodoListView.ItemsSource = dataManager.GetTodos(); // Refresh
                 ((ListView)TodoListView).Items.Refresh();
-
             }
         }
 
@@ -150,10 +150,8 @@ namespace WorkPartner
             if (whiteNoiseManager == null) return;
 
             var slider = sender as Slider;
-            string soundName = slider.Name.Replace("Slider", ""); // e.g., "WaveSlider" -> "Wave"
+            string soundName = slider.Name.Replace("Slider", "");
             whiteNoiseManager.SetVolume(soundName, slider.Value);
-
-            // Save settings
             dataManager.SaveSoundSetting(soundName, slider.Value);
         }
     }
