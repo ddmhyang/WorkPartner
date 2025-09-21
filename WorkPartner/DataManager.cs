@@ -1,82 +1,67 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using System;
+using System.Collections.Generic;
 using System.IO;
-using System.Text.Json;
-using System.Windows; // MessageBox를 위해 추가
+using System.Linq;
 
 namespace WorkPartner
 {
-    public static class DataManager
+    public class DataManager
     {
-        public static event Action SettingsUpdated;
+        private static readonly string dataPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data");
+        private static readonly string todosFilePath = Path.Combine(dataPath, "todos.json");
+        private static readonly string logsFilePath = Path.Combine(dataPath, "logs.json");
+        private static readonly string memoFilePath = Path.Combine(dataPath, "memo.txt");
+        private static readonly string characterDataFilePath = Path.Combine(dataPath, "character.json");
+        private static readonly string shopItemsFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "items_db.json");
+        private static readonly string soundSettingsFilePath = Path.Combine(dataPath, "sound_settings.json");
 
-        // 1. AppData 안에 우리 프로그램 전용 폴더 경로를 만듭니다.
-        private static readonly string AppDataFolder;
+        private static DataManager _instance;
+        public static DataManager Instance => _instance ?? (_instance = new DataManager());
 
-        // 2. 각 파일의 전체 경로를 속성으로 만들어 쉽게 가져다 쓸 수 있게 합니다.
-        public static string SettingsFilePath { get; }
-        public static string TimeLogFilePath { get; }
-        public static string TasksFilePath { get; }
-        public static string TodosFilePath { get; }
-        public static string MemosFilePath { get; }
-        public static string ModelFilePath { get; }
-        public static string ItemsDbFilePath { get; }
+        private List<TodoItem> _todos;
+        private Dictionary<DateTime, List<string>> _logs;
+        private CharacterData _characterData;
+        private List<ShopItem> _shopItems;
+        private Dictionary<string, double> _soundSettings;
 
-        // 프로그램이 시작될 때 단 한 번만 실행되는 생성자
-        static DataManager()
+        private DataManager()
         {
-            AppDataFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "WorkPartner");
-            Directory.CreateDirectory(AppDataFolder);
-            SettingsFilePath = Path.Combine(AppDataFolder, "app_settings.json");
-            TimeLogFilePath = Path.Combine(AppDataFolder, "timelogs.json");
-            TasksFilePath = Path.Combine(AppDataFolder, "tasks.json");
-            TodosFilePath = Path.Combine(AppDataFolder, "todos.json");
-            MemosFilePath = Path.Combine(AppDataFolder, "memos.json");
-            ModelFilePath = Path.Combine(AppDataFolder, "FocusPredictionModel.zip");
-            ItemsDbFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "items_db.json");
+            Directory.CreateDirectory(dataPath);
+            LoadTodos();
+            LoadLogs();
+            LoadCharacterData();
+            LoadShopItems();
+            LoadSoundSettings();
         }
 
-        public static AppSettings LoadSettings()
-        {
-            if (File.Exists(SettingsFilePath))
-            {
-                var json = File.ReadAllText(SettingsFilePath);
-                return JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
-            }
-            return new AppSettings();
-        }
+        // To-Do
+        public List<TodoItem> GetTodos() => _todos;
+        public void AddTodo(TodoItem todo) { _todos.Add(todo); SaveTodos(); }
+        public void RemoveTodo(TodoItem todo) { _todos.Remove(todo); SaveTodos(); }
+        public void SaveTodos() => File.WriteAllText(todosFilePath, JsonConvert.SerializeObject(_todos, Formatting.Indented));
+        private void LoadTodos() => _todos = File.Exists(todosFilePath) ? JsonConvert.DeserializeObject<List<TodoItem>>(File.ReadAllText(todosFilePath)) : new List<TodoItem>();
 
-        public static void SaveSettings(AppSettings settings)
-        {
-            var options = new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
-            var json = JsonSerializer.Serialize(settings, options);
-            File.WriteAllText(SettingsFilePath, json);
-        }
+        // Logs
+        public List<string> GetLogs(DateTime date) => _logs.ContainsKey(date.Date) ? _logs[date.Date] : new List<string>();
+        private void LoadLogs() => _logs = File.Exists(logsFilePath) ? JsonConvert.DeserializeObject<Dictionary<DateTime, List<string>>>(File.ReadAllText(logsFilePath)) : new Dictionary<DateTime, List<string>>();
 
-        public static void SaveSettingsAndNotify(AppSettings settings)
-        {
-            SaveSettings(settings);
-            SettingsUpdated?.Invoke();
-        }
+        // Memo
+        public string GetMemo() => File.Exists(memoFilePath) ? File.ReadAllText(memoFilePath) : "";
+        public void SaveMemo(string content) => File.WriteAllText(memoFilePath, content);
 
-        // AI 모델 파일과 같이, 처음에는 프로그램 폴더에 있다가
-        // 수정이 필요할 때 AppData로 복사해야 하는 파일을 준비하는 메서드
-        public static void PrepareFileForEditing(string sourceFileName)
-        {
-            try
-            {
-                string sourcePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, sourceFileName);
-                string destinationPath = Path.Combine(AppDataFolder, sourceFileName);
+        // Character Data
+        public CharacterData GetCharacterData() => _characterData;
+        public void SaveCharacterData(CharacterData data) { _characterData = data; File.WriteAllText(characterDataFilePath, JsonConvert.SerializeObject(_characterData, Formatting.Indented)); }
+        private void LoadCharacterData() => _characterData = File.Exists(characterDataFilePath) ? JsonConvert.DeserializeObject<CharacterData>(File.ReadAllText(characterDataFilePath)) : new CharacterData();
 
-                // AppData에 파일이 없고, 원본 파일은 있을 때만 복사
-                if (!File.Exists(destinationPath) && File.Exists(sourcePath))
-                {
-                    File.Copy(sourcePath, destinationPath);
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"파일 준비 중 오류 발생: {sourceFileName}\n{ex.Message}");
-            }
-        }
+        // Shop Items
+        public List<ShopItem> GetAllShopItems() => _shopItems;
+        private void LoadShopItems() => _shopItems = File.Exists(shopItemsFilePath) ? JsonConvert.DeserializeObject<List<ShopItem>>(File.ReadAllText(shopItemsFilePath)) : new List<ShopItem>();
+
+        // Sound Settings
+        public Dictionary<string, double> GetSoundSettings() => _soundSettings;
+        public void SaveSoundSetting(string soundName, double volume) { _soundSettings[soundName] = volume; File.WriteAllText(soundSettingsFilePath, JsonConvert.SerializeObject(_soundSettings, Formatting.Indented)); }
+        private void LoadSoundSettings() => _soundSettings = File.Exists(soundSettingsFilePath) ? JsonConvert.DeserializeObject<Dictionary<string, double>>(File.ReadAllText(soundSettingsFilePath)) : new Dictionary<string, double>();
     }
 }

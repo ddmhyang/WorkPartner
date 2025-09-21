@@ -1,39 +1,22 @@
 ﻿<Window x:Class="WorkPartner.AlertWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:WorkPartner"
-        mc:Ignorable="d"
-        Title="AlertWindow" Height="150" Width="350"
-        WindowStyle="None"
-        AllowsTransparency="True"
-        Background="Transparent"
-        Topmost="True"
-        ShowInTaskbar="False"
-        WindowStartupLocation="CenterScreen"
-        MouseLeftButtonDown="Window_MouseLeftButtonDown">
-    <Border Background="#F0F8FF" CornerRadius="10" BorderBrush="#007AFF" BorderThickness="2">
-        <Border.Effect>
-            <DropShadowEffect ShadowDepth="2" BlurRadius="5" Opacity="0.5" Color="Gray"/>
-        </Border.Effect>
-        <Grid>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
+        Title="Alert" Height="180" Width="350"
+        WindowStartupLocation="CenterScreen" WindowStyle="ToolWindow" ResizeMode="NoResize">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
 
-            <TextBlock Grid.Row="0" Text="⚠️ 집중하세요!" FontSize="16" FontWeight="Bold" Foreground="#007AFF" Margin="15,10,15,5" HorizontalAlignment="Center"/>
+        <TextBlock Name="MessageText" Text="Message goes here." TextWrapping="Wrap" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="20"/>
 
-            <TextBlock Grid.Row="1" x:Name="MessageTextBlock" Text="메시지 내용"
-                       TextWrapping="Wrap"
-                       HorizontalAlignment="Center"
-                       VerticalAlignment="Center"
-                       Margin="15,5"/>
-
-            <Button Grid.Row="2" Content="확인" Width="80" HorizontalAlignment="Center" Margin="0,0,0,15"
-                    Click="OkButton_Click" IsDefault="True"/>
-        </Grid>
-    </Border>
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,15">
+            <!-- 확인 버튼 (기본) -->
+            <Button Name="OkButton" Content="확인" Click="OkButton_Click" Width="80" Margin="5" IsDefault="True"/>
+            <!-- 예/아니오 버튼 (선택적 표시) -->
+            <Button Name="YesButton" Content="예" Click="YesButton_Click" Width="80" Margin="5" Visibility="Collapsed" IsDefault="True"/>
+            <Button Name="NoButton" Content="아니오" Click="NoButton_Click" Width="80" Margin="5" Visibility="Collapsed" IsCancel="True"/>
+        </StackPanel>
+    </Grid>
 </Window>
