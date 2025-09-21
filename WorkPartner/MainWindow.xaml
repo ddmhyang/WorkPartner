@@ -5,50 +5,50 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:WorkPartner"
         mc:Ignorable="d"
-        Title="WorkPartner" Height="720" Width="1280" Icon="/WorkPartner.ico">
-    <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="200"/>
-            <ColumnDefinition Width="*"/>
-        </Grid.ColumnDefinitions>
-
-        <!-- Navigation Panel -->
-        <Border Grid.Column="0" Background="#34495E">
-            <StackPanel Margin="10">
-                <TextBlock Text="WorkPartner" Foreground="White" FontSize="24" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,10,0,30"/>
-                <Button Content="대시보드" Click="DashboardButton_Click" Style="{StaticResource NavButtonStyle}"/>
-                <Button Content="아바타 꾸미기" Click="AvatarCustomizationButton_Click" Style="{StaticResource NavButtonStyle}"/>
-                <Button Content="통계" Click="AnalysisButton_Click" Style="{StaticResource NavButtonStyle}"/>
-                <Button Content="설정" Click="SettingsButton_Click" Style="{StaticResource NavButtonStyle}"/>
-            </StackPanel>
-        </Border>
-
-        <!-- Main Content -->
-        <Frame Name="MainFrame" Grid.Column="1" NavigationUIVisibility="Hidden"/>
-    </Grid>
+        Title="작업 파트너" Height="526" Width="682"
+        Loaded="MainWindow_Loaded"
+        Closing="MainWindow_Closing">
     <Window.Resources>
-        <Style x:Key="NavButtonStyle" TargetType="Button">
+        <Style x:Key="NavButton" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="FontSize" Value="16"/>
-            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Foreground" Value="#444"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Padding" Value="15,10"/>
-            <Setter Property="HorizontalContentAlignment" Value="Left"/>
-            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Margin" Value="2,0"/>
+            <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                        <Border x:Name="border" Background="{TemplateBinding Background}" CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#4A6572"/>
+                    <Setter Property="Background" Value="#EAEAEA"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
     </Window.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Background="#FDFDFD" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1" Padding="5">
+            <StackPanel x:Name="NavigationPanel" Orientation="Horizontal">
+                <Button x:Name="DashboardButton" Content="대시보드" Click="DashboardButton_Click" Style="{StaticResource NavButton}"/>
+                <Button Content="상점" Click="ShopButton_Click" Style="{StaticResource NavButton}"/>
+                <Button Content="옷장" Click="ClosetButton_Click" Style="{StaticResource NavButton}"/>
+                <Button Content="분석" Click="AnalysisButton_Click" Style="{StaticResource NavButton}"/>
+                <Button Content="설정" Click="SettingsButton_Click" Style="{StaticResource NavButton}"/>
+            </StackPanel>
+        </Border>
+
+        <ContentControl Grid.Row="1" x:Name="PageContent" Background="{StaticResource AppBackgroundBrush}"/>
+    </Grid>
 </Window>

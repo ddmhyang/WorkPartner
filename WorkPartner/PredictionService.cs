@@ -1,99 +1,95 @@
-﻿using Microsoft.ML;
+﻿// 파일: PredictionService.cs (수정)
+// [수정] 학습 데이터를 TimeLogEntry에서 ModelInput 형태로 변환하여 사용하는 로직으로 변경했습니다.
 using System;
+using System.Collections.Generic;
 using System.IO;
-using WorkPartner.AI;
+using System.Linq;
+using System.Text.Json;
+using Microsoft.ML;
+using Microsoft.ML.Trainers.FastTree;
+using System.Windows;
 
-namespace WorkPartner
+namespace WorkPartner.AI
 {
-    /// <summary>
-    /// ML.NET 모델을 사용하여 사용자 활동을 예측하는 서비스를 관리합니다.
-    /// 싱글턴 패턴으로 구현되어 애플리케이션 전체에서 하나의 인스턴스만 사용됩니다.
-    /// </summary>
     public class PredictionService
     {
-        private readonly string logFilePath;
-        private readonly string modelPath;
-        private static PredictionService instance;
-        private PredictionEngine<ModelInput, ModelOutput> predEngine;
-        private MLContext mlContext;
+        private readonly string _timeLogFilePath = DataManager.TimeLogFilePath;
+        private string _modelPath = DataManager.ModelFilePath; // AI 훈련 시 경로가 바뀔 수 있으므로 readonly 제거
 
-        private PredictionService()
+        private MLContext _mlContext;
+        private ITransformer _model;
+
+        public PredictionService()
         {
-            // DataManager를 통해 필요한 파일 경로를 가져옵니다.
-            logFilePath = DataManager.Instance.GetLogsFilePath();
-            modelPath = DataManager.Instance.GetModelFilePath();
-            mlContext = new MLContext();
-
-            // 모델 파일이 존재할 경우에만 예측 엔진을 생성합니다.
-            if (File.Exists(modelPath))
-            {
-                LoadModel();
-            }
+            _mlContext = new MLContext(seed: 0);
         }
 
-        /// <summary>
-        /// PredictionService의 싱글턴 인스턴스를 가져옵니다.
-        /// </summary>
-        public static PredictionService Instance
-        {
-            get
-            {
-                if (instance == null)
-                {
-                    instance = new PredictionService();
-                }
-                return instance;
-            }
-        }
-
-        /// <summary>
-        /// 저장된 ML.NET 모델을 로드하고 예측 엔진을 생성합니다.
-        /// </summary>
-        private void LoadModel()
+        public void TrainModel()
         {
             try
             {
-                DataViewSchema modelSchema;
-                ITransformer trainedModel = mlContext.Model.Load(modelPath, out modelSchema);
-                predEngine = mlContext.Model.CreatePredictionEngine<ModelInput, ModelOutput>(trainedModel);
+                if (!File.Exists(_timeLogFilePath)) return;
+
+                var json = File.ReadAllText(_timeLogFilePath);
+                if (string.IsNullOrWhiteSpace(json)) return;
+
+                var allLogs = JsonSerializer.Deserialize<List<TimeLogEntry>>(json);
+
+                // [핵심 수정] TimeLogEntry 리스트를 AI 학습용 ModelInput 리스트로 변환합니다.
+                var modelInputData = allLogs
+                    .Where(log => log.FocusScore > 0)
+                    .Select(log => new ModelInput
+                    {
+                        DayOfWeek = (float)log.StartTime.DayOfWeek,
+                        Hour = (float)log.StartTime.Hour,
+                        Duration = (float)log.Duration.TotalMinutes,
+                        TaskName = log.TaskText,
+                        FocusScore = log.FocusScore
+                    }).ToList();
+
+                if (modelInputData.Count < 10) return;
+
+                // 변환된 데이터를 사용하여 DataView를 생성합니다.
+                var dataView = _mlContext.Data.LoadFromEnumerable(modelInputData);
+
+                var pipeline = _mlContext.Transforms.Categorical.OneHotEncoding(outputColumnName: "TaskNameEncoded", inputColumnName: "TaskName")
+                    .Append(_mlContext.Transforms.Concatenate("Features", "DayOfWeek", "Hour", "Duration", "TaskNameEncoded"))
+                    .Append(_mlContext.Regression.Trainers.FastTree());
+
+                _model = pipeline.Fit(dataView);
+                _mlContext.Model.Save(_model, dataView.Schema, _modelPath);
             }
             catch (Exception ex)
             {
-                // 모델 로드 실패 시 오류를 처리할 수 있습니다. (예: 로그 기록)
-                Console.WriteLine($"Error loading model: {ex.Message}");
-                predEngine = null;
+                MessageBox.Show($"AI 모델 훈련 중 오류가 발생했습니다: {ex.Message}");
             }
         }
 
-        /// <summary>
-        /// 주어진 입력 데이터로 예측을 수행합니다.
-        /// </summary>
-        /// <param name="input">예측에 사용할 입력 데이터</param>
-        /// <returns>예측 결과</returns>
-        public ModelOutput Predict(ModelInput input)
+        public float Predict(ModelInput input)
         {
-            if (predEngine == null)
+            if (_model == null)
             {
-                // 모델이 로드되지 않았을 경우 기본값을 반환하거나 예외를 발생시킬 수 있습니다.
-                return null;
+                if (File.Exists(_modelPath))
+                {
+                    _model = _mlContext.Model.Load(_modelPath, out _);
+                }
+                else
+                {
+                    TrainModel();
+                    if (File.Exists(_modelPath))
+                    {
+                        _model = _mlContext.Model.Load(_modelPath, out _);
+                    }
+                    else
+                    {
+                        return 0;
+                    }
+                }
             }
-            return predEngine.Predict(input);
-        }
 
-        /// <summary>
-        /// 모델을 다시 학습하고 예측 엔진을 재생성해야 할 때 사용될 수 있습니다.
-        /// (현재는 외부에서 모델을 생성한다고 가정)
-        /// </summary>
-        public void RetrainModel()
-        {
-            // 여기에 모델 재학습 로직을 구현할 수 있습니다.
-            // 예를 들어, 새로운 로그 데이터로 모델을 다시 학습하고 저장한 뒤,
-            // LoadModel()을 호출하여 예측 엔진을 업데이트합니다.
-            if (File.Exists(modelPath))
-            {
-                LoadModel();
-            }
+            var predictionEngine = _mlContext.Model.CreatePredictionEngine<ModelInput, ModelOutput>(_model);
+            var result = predictionEngine.Predict(input);
+            return result.PredictedFocusScore;
         }
     }
 }
-

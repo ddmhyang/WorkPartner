@@ -144,7 +144,7 @@
       <HintPath>..\packages\Microsoft.Xaml.Behaviors.Wpf.1.1.39\lib\net45\Microsoft.Xaml.Behaviors.dll</HintPath>
     </Reference>
     <Reference Include="Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
-      <HintPath>..\packages\Newtonsoft.Json.13.0.4\lib\net45\Newtonsoft.Json.dll</HintPath>
+      <HintPath>..\packages\Newtonsoft.Json.13.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Buffers, Version=4.0.4.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
@@ -240,18 +240,17 @@
       <DependentUpon>AppSelectionWindow.xaml</DependentUpon>
     </Compile>
     <Compile Include="AppSettings.cs" />
-    <Compile Include="AvatarCustomizationPage.xaml.cs">
-      <DependentUpon>AvatarCustomizationPage.xaml</DependentUpon>
-    </Compile>
     <Compile Include="BreakActivityWindow.xaml.cs">
       <DependentUpon>BreakActivityWindow.xaml</DependentUpon>
     </Compile>
     <Compile Include="BulkEditLogsWindow.xaml.cs">
       <DependentUpon>BulkEditLogsWindow.xaml</DependentUpon>
     </Compile>
-    <Compile Include="CharacterData.cs" />
     <Compile Include="CharacterDisplay.xaml.cs">
       <DependentUpon>CharacterDisplay.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="ClosetPage.xaml.cs">
+      <DependentUpon>ClosetPage.xaml</DependentUpon>
     </Compile>
     <Compile Include="ColorPickerWindow.xaml.cs">
       <DependentUpon>ColorPickerWindow.xaml</DependentUpon>
@@ -264,7 +263,6 @@
       <DependentUpon>InputWindow.xaml</DependentUpon>
     </Compile>
     <Compile Include="InstalledProgram.cs" />
-    <Compile Include="ItemType.cs" />
     <Compile Include="MiniTimerWindow.xaml.cs">
       <DependentUpon>MiniTimerWindow.xaml</DependentUpon>
     </Compile>
@@ -275,6 +273,9 @@
       <DependentUpon>SettingsPage.xaml</DependentUpon>
     </Compile>
     <Compile Include="ShopItem.cs" />
+    <Compile Include="ShopPage.xaml.cs">
+      <DependentUpon>ShopPage.xaml</DependentUpon>
+    </Compile>
     <Compile Include="SoundPlayer.cs" />
     <Compile Include="TaskItem.cs" />
     <Compile Include="TaskSelectionWindow.xaml.cs">
@@ -285,7 +286,6 @@
     <Compile Include="MemoItem.cs" />
     <Compile Include="TintColorEffect.cs" />
     <Compile Include="TodoItem.cs" />
-    <Compile Include="WhiteNoiseManager.cs" />
     <Page Include="AddLogWindow.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
@@ -302,10 +302,6 @@
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
-    <Page Include="AvatarCustomizationPage.xaml">
-      <SubType>Designer</SubType>
-      <Generator>MSBuild:Compile</Generator>
-    </Page>
     <Page Include="BreakActivityWindow.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
@@ -315,6 +311,10 @@
       <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Include="CharacterDisplay.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="ClosetPage.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
@@ -361,6 +361,10 @@
       <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Include="SettingsPage.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="ShopPage.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
